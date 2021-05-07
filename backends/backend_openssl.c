@@ -2067,6 +2067,7 @@ static int openssl_drbg_generate(struct drbg_data *data, flags_t parsed_flags)
 		logger(LOGGER_WARN, "DRBG with unhandled cipher detected\n");
 		return -EFAULT;
 	}
+	logger(LOGGER_DEBUG, "nid = %d\n", nid);
 
 	if (data->df)
 		df = DRBG_DF_FLAG;
@@ -2074,7 +2075,7 @@ static int openssl_drbg_generate(struct drbg_data *data, flags_t parsed_flags)
 		df = DRBG_NO_DF_FLAG;
 
 	ctx = DRBG_new(nid, df);
-	CKNULL(ctx, -ENOMEM);
+	CKNULL_LOG(ctx, -ENOMEM, "DRBG_new %s\n", ERR_error_string(ERR_get_error(), NULL));
 
 	logger_binary(LOGGER_DEBUG, data->entropy.buf, data->entropy.len,
 			  "entropy");
