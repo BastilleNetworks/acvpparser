@@ -1,3 +1,4 @@
+// vim: set noexpandtab ts=8 sw=8:
 /*
  * Copyright (C) 2018 - 2021, Stephan Müller <smueller@chronox.de>
  *
@@ -123,7 +124,7 @@ static void openssl_backend_init(void)
 #endif
 
 /*
- * Enable this option if your OpenSSL code base implements the 
+ * Enable this option if your OpenSSL code base implements the
  * SP800-108 KBKDF.
  */
 #ifndef OPENSSL_KBKDF
@@ -412,7 +413,7 @@ static int openssl_md_convert(uint64_t cipher, const EVP_MD **type)
 	const char *algo;
 
 	CKINT(convert_cipher_algo(cipher & (ACVP_HASHMASK | ACVP_HMACMASK |
-					    ACVP_SHAKEMASK),
+						ACVP_SHAKEMASK),
 				  ACVP_CIPHERTYPE_HASH | ACVP_CIPHERTYPE_HMAC | ACVP_CIPHERTYPE_XOF,
 				  &algo));
 
@@ -438,6 +439,12 @@ static int openssl_md_convert(uint64_t cipher, const EVP_MD **type)
 	case ACVP_HMACSHA2_512:
 	case ACVP_SHA512:
 		l_type = EVP_sha512();
+		break;
+	case ACVP_SHA512224:
+		l_type = EVP_sha512_224();
+		break;
+	case ACVP_SHA512256:
+		l_type = EVP_sha512_256();
 		break;
 
 #ifdef OPENSSL_SSH_SHA3
@@ -467,7 +474,7 @@ static int openssl_md_convert(uint64_t cipher, const EVP_MD **type)
 #endif
 
 	default:
-		logger(LOGGER_WARN, "Unknown cipher\n");
+		logger(LOGGER_WARN, "Unknown cipher: %#0llX\n", (cipher & (ACVP_HASHMASK | ACVP_HMACMASK | ACVP_SHAKEMASK)));
 		ret = -EINVAL;
 	}
 
@@ -509,10 +516,10 @@ struct openssl_test_ent {
 
 static int idx;
 
-# define DRBG_ctx        		RAND_DRBG
+# define DRBG_ctx				RAND_DRBG
 # define DRBG_get_data(a)		RAND_DRBG_get_ex_data(a, idx)
 # define DRBG_new(a, b)			RAND_DRBG_new(a, b, NULL)
-# define DRBG_set_callbacks(a, b, c)   					\
+# define DRBG_set_callbacks(a, b, c)					\
 				RAND_DRBG_set_callbacks(a, b, NULL, c, NULL)
 # define DRBG_set_data(a, b)		RAND_DRBG_set_ex_data(a, idx, b)
 # define DRBG_instantiate(a, b, c)	RAND_DRBG_instantiate(a, b, c)
@@ -523,8 +530,8 @@ static int idx;
 # define DRBG_NO_DF_FLAG		RAND_DRBG_FLAG_CTR_NO_DF
 
 static size_t openssl_entropy(RAND_DRBG *dctx, unsigned char **pout,
-			      int entropy, size_t min_len, size_t max_len,
-			      int prediction_resistance)
+				  int entropy, size_t min_len, size_t max_len,
+				  int prediction_resistance)
 {
 	struct openssl_test_ent *t = DRBG_get_data(dctx);
 
@@ -569,13 +576,13 @@ private_tls1_PRF(long digest_mask,
 #define TLS_MASTER_SECRET_LEN 384/8
 
 static int tls1_PRF(uint64_t cipher,
-		    const void *seed1, int seed1_len,
-		    const void *seed2, int seed2_len,
-		    const void *seed3, int seed3_len,
-		    const void *seed4, int seed4_len,
-		    const void *seed5, int seed5_len,
-		    const unsigned char *sec, int slen,
-		    unsigned char *out, int olen)
+			const void *seed1, int seed1_len,
+			const void *seed2, int seed2_len,
+			const void *seed3, int seed3_len,
+			const void *seed4, int seed4_len,
+			const void *seed5, int seed5_len,
+			const unsigned char *sec, int slen,
+			unsigned char *out, int olen)
 {
 	long digest_mask = 0;
 	unsigned char tmp[1024];
@@ -633,7 +640,7 @@ static void openssl_rsa_get0_key(const RSA *r, const BIGNUM **n,
 	*d = r->d;
 }
 static void openssl_rsa_get0_factors(const RSA *r, const BIGNUM **p,
-				     const BIGNUM **q)
+					 const BIGNUM **q)
 {
 	*p = r->p;
 	*q = r->q;
@@ -680,7 +687,7 @@ static int openssl_dsa_g_gen(struct dsa_pqg_data *data, flags_t parsed_flags)
 	CKNULL_LOG(q, 1, "BN_bin2bn() failed");
 
 	CKINT_O_LOG(FIPS_dsa_generate_g(ctx, p, q, &g, &h, NULL),
-		    "FIPS_dsa_generate_g() failed");
+			"FIPS_dsa_generate_g() failed");
 
 	CKINT(openssl_bn2buffer(g, &data->G));
 	CKNULL_LOG(g, 1, "BN_bn2bin() failed")
@@ -722,8 +729,8 @@ static int openssl_dsa_pq_ver(struct dsa_pqg_data *data, flags_t parsed_flags)
 	logger_binary(LOGGER_DEBUG, data->Q.buf, data->Q.len, "Q");
 	logger_binary(LOGGER_DEBUG, data->G.buf, data->G.len, "G");
 	logger_binary(LOGGER_DEBUG, data->pq_prob_domain_param_seed.buf,
-		      data->pq_prob_domain_param_seed.len,
-		      "Domain parameter seed");
+			  data->pq_prob_domain_param_seed.len,
+			  "Domain parameter seed");
 	logger(LOGGER_DEBUG, "Counter = %u\n", data->pq_prob_counter);
 
 	p = BN_bin2bn((const unsigned char *)data->P.buf, data->P.len, NULL);
@@ -734,7 +741,7 @@ static int openssl_dsa_pq_ver(struct dsa_pqg_data *data, flags_t parsed_flags)
 
 	if (data->G.len)
 		g = BN_bin2bn((const unsigned char *)data->G.buf, data->G.len,
-			      NULL);
+				  NULL);
 	else
 		g = BN_new();
 	CKNULL_LOG(g, -ENOMEM, "BN_bin2bn() failed\n");
@@ -756,7 +763,7 @@ static int openssl_dsa_pq_ver(struct dsa_pqg_data *data, flags_t parsed_flags)
 					   data->pq_prob_domain_param_seed.len,
 					   &counter2,
 					   h2, NULL),
-		    "FIPS_dsa_builtin_paramgen() failed\n");
+			"FIPS_dsa_builtin_paramgen() failed\n");
 
 	data->pqgver_success = 1;
 	if (BN_cmp(dsa->p, p)) {
@@ -765,7 +772,7 @@ static int openssl_dsa_pq_ver(struct dsa_pqg_data *data, flags_t parsed_flags)
 		CKINT(openssl_bn2buffer(dsa->p, &gen_p_buf));
 		logger(LOGGER_DEBUG, "P comparision failed\n");
 		logger_binary(LOGGER_DEBUG, gen_p_buf.buf, gen_p_buf.len,
-			      "gen P");
+				  "gen P");
 		free_buf(&gen_p_buf);
 		data->pqgver_success = 0;
 	}
@@ -775,7 +782,7 @@ static int openssl_dsa_pq_ver(struct dsa_pqg_data *data, flags_t parsed_flags)
 		CKINT(openssl_bn2buffer(dsa->q, &gen_q_buf));
 		logger(LOGGER_DEBUG, "Q comparision failed\n");
 		logger_binary(LOGGER_DEBUG, gen_q_buf.buf, gen_q_buf.len,
-			      "gen Q");
+				  "gen Q");
 		free_buf(&gen_q_buf);
 		data->pqgver_success = 0;
 	}
@@ -787,8 +794,8 @@ static int openssl_dsa_pq_ver(struct dsa_pqg_data *data, flags_t parsed_flags)
 	}
 	if ((uint32_t)counter2 != data->pq_prob_counter) {
 		logger(LOGGER_DEBUG,
-		       "Counter mismatch (expected %u, generated %d)\n",
-		       data->pq_prob_counter, counter2);
+			   "Counter mismatch (expected %u, generated %d)\n",
+			   data->pq_prob_counter, counter2);
 		data->pqgver_success = 0;
 	}
 
@@ -918,13 +925,13 @@ static int openssl_dh_set0_key(DH *dh, BIGNUM *pub_key, BIGNUM *priv_key)
 /* Copy from ssl/t1_enc.c */
 #ifndef OPENSSL_SSH_KDF
 static int tls1_PRF(uint64_t cipher,
-		    const void *seed1, int seed1_len,
-		    const void *seed2, int seed2_len,
-		    const void *seed3, int seed3_len,
-		    const void *seed4, int seed4_len,
-		    const void *seed5, int seed5_len,
-		    const unsigned char *sec, int slen,
-		    unsigned char *out, int olen)
+			const void *seed1, int seed1_len,
+			const void *seed2, int seed2_len,
+			const void *seed3, int seed3_len,
+			const void *seed4, int seed4_len,
+			const void *seed5, int seed5_len,
+			const unsigned char *sec, int slen,
+			unsigned char *out, int olen)
 {
 	const EVP_MD *md;
 	EVP_PKEY_CTX *pctx = NULL;
@@ -981,7 +988,7 @@ static void openssl_rsa_get0_key(const RSA *r, const BIGNUM **n,
 }
 
 static void openssl_rsa_get0_factors(const RSA *r, const BIGNUM **p,
-				     const BIGNUM **q)
+					 const BIGNUM **q)
 {
 	RSA_get0_factors(r, p, q);
 }
@@ -1112,16 +1119,16 @@ static int openssl_mct_update(struct sym_data *data, flags_t parsed_flags)
 	size_t origlen = data->data.len;
 
 	logger_binary(LOGGER_DEBUG, data->data.buf, data->data.len,
-		      (parsed_flags & FLAG_OP_ENC) ?
-		      "plaintext" : "ciphertext");
+			  (parsed_flags & FLAG_OP_ENC) ?
+			  "plaintext" : "ciphertext");
 
 	/* For CFB-1 the data is given in bits */
 	if ((data->cipher == ACVP_TDESCFB1 || data->cipher == ACVP_CFB1) &&
-	    data->data_len_bits) {
+		data->data_len_bits) {
 		if (data->data_len_bits > (data->data.len << 3)) {
 			logger(LOGGER_ERR,
-			       "Data length bits (%u bits) is larger than provided data (%zu bytes)\n",
-			       data->data_len_bits, data->data.len);
+				   "Data length bits (%u bits) is larger than provided data (%zu bytes)\n",
+				   data->data_len_bits, data->data.len);
 			return -EINVAL;
 		}
 		origlen = data->data.len;
@@ -1129,7 +1136,7 @@ static int openssl_mct_update(struct sym_data *data, flags_t parsed_flags)
 	}
 
 	if (1 != EVP_Cipher(ctx, data->data.buf, data->data.buf,
-			    (unsigned int)data->data.len)) {
+				(unsigned int)data->data.len)) {
 		logger(LOGGER_DEBUG, "Update failed");
 		return -EFAULT;
 	}
@@ -1138,8 +1145,8 @@ static int openssl_mct_update(struct sym_data *data, flags_t parsed_flags)
 		data->data.len = origlen;
 
 	logger_binary(LOGGER_DEBUG, data->data.buf, data->data.len,
-		      (parsed_flags & FLAG_OP_ENC) ?
-		      "ciphertext" : "plaintext");
+			  (parsed_flags & FLAG_OP_ENC) ?
+			  "ciphertext" : "plaintext");
 
 	return 0;
 }
@@ -1189,15 +1196,15 @@ static int openssl_mct_update_inner_loop(struct sym_data *data,
 		if (data->cipher != ACVP_ECB) {
 			memcpy(tmp, data->data.buf, data->data.len);
 			memcpy(data->data.buf, data->inner_loop_final_cj1.buf,
-			       data->data.len);
+				   data->data.len);
 			memcpy(data->inner_loop_final_cj1.buf, tmp,
-			       data->data.len);
+				   data->data.len);
 		}
 	}
 
 	if (data->cipher == ACVP_ECB)
 		memcpy(data->inner_loop_final_cj1.buf, data->data.buf,
-		       data->data.len);
+			   data->data.len);
 
 	/* final round of calculation without data shuffle */
 	CKINT(openssl_mct_update(data, parsed_flags));
@@ -1248,9 +1255,9 @@ static int openssl_kw_encrypt(struct sym_data *data, flags_t parsed_flags)
 					   (block128_f)AES_encrypt);
 	} else {
 		ret = (int)CRYPTO_128_wrap_pad(&AESkey, NULL, ct.buf,
-					       data->data.buf,
-					       data->data.len,
-					       (block128_f)AES_encrypt);
+						   data->data.buf,
+						   data->data.len,
+						   (block128_f)AES_encrypt);
 	}
 
 	free_buf(&data->data);
@@ -1279,9 +1286,9 @@ static int openssl_kw_decrypt(struct sym_data *data, flags_t parsed_flags)
 
 	if (data->cipher == ACVP_KW) {
 		ret = (int)CRYPTO_128_unwrap(&AESkey, NULL, data->data.buf,
-					     data->data.buf,
-					     data->data.len,
-					     (block128_f)AES_decrypt);
+						 data->data.buf,
+						 data->data.len,
+						 (block128_f)AES_decrypt);
 		/* Plaintext data block is smaller by one semiblock */
 		if (data->data.len >= SEMIBSIZE)
 			data->data.len -= SEMIBSIZE;
@@ -1298,7 +1305,7 @@ static int openssl_kw_decrypt(struct sym_data *data, flags_t parsed_flags)
 	if (ret <= 0) {
 		if (data->data.len >= CIPHER_DECRYPTION_FAILED_LEN) {
 			memcpy(data->data.buf, CIPHER_DECRYPTION_FAILED,
-			       CIPHER_DECRYPTION_FAILED_LEN);
+				   CIPHER_DECRYPTION_FAILED_LEN);
 			data->data.len = CIPHER_DECRYPTION_FAILED_LEN;
 		} else {
 			logger(LOGGER_WARN, "AES KW decrypt failed\n");
@@ -1395,7 +1402,7 @@ static int openssl_cmac_generate(struct hmac_data *data)
 	logger_binary(LOGGER_DEBUG, data->key.buf, data->key.len, "key");
 
 	CKINT_O_LOG(CMAC_Init(ctx, data->key.buf, data->key.len, type, NULL),
-		    "CMAC_Init() failed\n");
+			"CMAC_Init() failed\n");
 
 	blocklen = EVP_CIPHER_block_size(type);
 	CKINT_LOG(alloc_buf((size_t)blocklen, &data->mac),
@@ -1404,10 +1411,10 @@ static int openssl_cmac_generate(struct hmac_data *data)
 	logger(LOGGER_DEBUG, "tag length = %d", blocklen);
 
 	CKINT_O_LOG(CMAC_Update(ctx, data->msg.buf, data->msg.len),
-		    "CMAC_Update() failed\n");
+			"CMAC_Update() failed\n");
 
 	CKINT_O_LOG(CMAC_Final(ctx, data->mac.buf, (size_t *) &data->mac.len),
-		    "CMAC_Final() failed\n");
+			"CMAC_Final() failed\n");
 
 	logger_binary(LOGGER_DEBUG, data->mac.buf, data->mac.len, "mac");
 
@@ -1435,6 +1442,8 @@ static int openssl_hmac_generate(struct hmac_data *data)
 	unsigned int taglen;
 	int mdlen;
 	int ret = 0;
+	size_t length;
+	uint32_t maclen_bytes;
 
 	CKINT(openssl_md_convert(data->cipher, &md));
 
@@ -1444,8 +1453,13 @@ static int openssl_hmac_generate(struct hmac_data *data)
 		  "SHA buffer cannot be allocated\n");
 
 	taglen = (unsigned int)data->mac.len;
+	maclen_bytes = (data->maclen) / 8;
+	length = (size_t)((maclen_bytes < taglen)?maclen_bytes:taglen);
 
 	logger(LOGGER_DEBUG, "taglen = %zu\n", data->mac.len);
+	logger(LOGGER_DEBUG, "data->maclen = %u\n", data->maclen);
+	logger(LOGGER_DEBUG, "maclen_bytes = %u\n", maclen_bytes);
+	logger(LOGGER_DEBUG, "length = %zu\n", length);
 	logger_binary(LOGGER_DEBUG, data->key.buf, data->key.len, "key");
 	logger_binary(LOGGER_DEBUG, data->msg.buf, data->msg.len, "msg");
 
@@ -1453,12 +1467,13 @@ static int openssl_hmac_generate(struct hmac_data *data)
 		 data->msg.buf, (unsigned int)data->msg.len,
 		 hmac, &taglen)) {
 		logger(LOGGER_WARN, "HMAC failed: %s\n",
-		       ERR_error_string(ERR_get_error(), NULL));
+			   ERR_error_string(ERR_get_error(), NULL));
 		ret = -EINVAL;
 		goto out;
 	}
 
-	memcpy(data->mac.buf, hmac, data->mac.len);
+	memcpy(data->mac.buf, hmac, length);
+	data->mac.len = length;
 	logger_binary(LOGGER_DEBUG, data->mac.buf, data->mac.len, "hmac");
 
 out:
@@ -1521,19 +1536,19 @@ static int openssl_sha_generate(struct sha_data *data, flags_t parsed_flags)
 	logger_binary(LOGGER_DEBUG, data->msg.buf, data->msg.len, "msg");
 
 	CKINT_O_LOG(EVP_DigestInit(ctx, md), "EVP_DigestInit() failed %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+			ERR_error_string(ERR_get_error(), NULL));
 
 	CKINT_O_LOG(EVP_DigestUpdate(ctx, data->msg.buf, data->msg.len),
-		    "EVP_DigestUpdate() failed\n");
+			"EVP_DigestUpdate() failed\n");
 
 	if (data->cipher & ACVP_SHAKEMASK) {
 		CKINT_O_LOG(openssl_shake_cb(ctx, data->mac.buf,
-					     data->mac.len),
-			    "EVP_DigestFinalXOF() failed\n");
+						 data->mac.len),
+				"EVP_DigestFinalXOF() failed\n");
 	} else {
 		CKINT_O_LOG(EVP_DigestFinal(ctx, data->mac.buf,
-					    &maclen),
-			    "EVP_DigestFinal() failed\n");
+						&maclen),
+				"EVP_DigestFinal() failed\n");
 		data->mac.len = (size_t)maclen;
 	}
 
@@ -1573,19 +1588,19 @@ static int openssl_hash_inner_loop(struct sha_data *data, flags_t parsed_flags)
 	case ACVP_SHA384:
 	case ACVP_SHA512:
 		return parser_sha2_inner_loop(data, parsed_flags,
-					      openssl_sha_generate);
+						  openssl_sha_generate);
 
 	case ACVP_SHA3_224:
 	case ACVP_SHA3_256:
 	case ACVP_SHA3_384:
 	case ACVP_SHA3_512:
 		return parser_sha3_inner_loop(data, parsed_flags,
-					      openssl_sha_generate);
+						  openssl_sha_generate);
 
 	case ACVP_SHAKE128:
 	case ACVP_SHAKE256:
 		return parser_shake_inner_loop(data, parsed_flags,
-					       openssl_sha_generate);
+						   openssl_sha_generate);
 
 	default:
 		return -EOPNOTSUPP;
@@ -1621,7 +1636,7 @@ static int openssl_gcm_encrypt(struct aead_data *data, flags_t parsed_flags)
 
 	if (data->iv.len && data->iv.len < 12) {
 		logger(LOGGER_WARN,
-		       "IV length must be 12 or higher (see code for EVP_CTRL_AEAD_SET_IVLEN)\n");
+			   "IV length must be 12 or higher (see code for EVP_CTRL_AEAD_SET_IVLEN)\n");
 		return -EINVAL;
 	}
 
@@ -1636,7 +1651,7 @@ static int openssl_gcm_encrypt(struct aead_data *data, flags_t parsed_flags)
 	logger_binary(LOGGER_DEBUG, data->key.buf, data->key.len, "key");
 	logger_binary(LOGGER_DEBUG, data->assoc.buf, data->assoc.len, "AAD");
 	logger_binary(LOGGER_DEBUG, data->data.buf, data->data.len,
-		      "plaintext");
+			  "plaintext");
 
 	CKINT(alloc_buf(taglen, &data->tag));
 
@@ -1646,13 +1661,13 @@ static int openssl_gcm_encrypt(struct aead_data *data, flags_t parsed_flags)
 	CKNULL(ctx, -ENOMEM);
 
 	CKINT_O_LOG(EVP_CipherInit_ex(ctx, type, NULL, NULL, NULL, 1),
-		    "EVP_CipherInit() during first call failed\n");
+			"EVP_CipherInit() during first call failed\n");
 
 	if (data->iv.len) {
 		CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN,
 						(int)data->iv.len, NULL),
-			    "EVP_CIPHER_CTX_ctrl() failed to set the IV length %zu\n",
-			    data->iv.len);
+				"EVP_CIPHER_CTX_ctrl() failed to set the IV length %zu\n",
+				data->iv.len);
 	} else {
 		if (ivlen < 4) {
 			logger(LOGGER_WARN, "IV size too small\n");
@@ -1661,8 +1676,8 @@ static int openssl_gcm_encrypt(struct aead_data *data, flags_t parsed_flags)
 		}
 		CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN,
 						(int)ivlen, NULL),
-			    "EVP_CIPHER_CTX_ctrl() failed to set the IV length %zu\n",
-			    data->iv.len);
+				"EVP_CIPHER_CTX_ctrl() failed to set the IV length %zu\n",
+				data->iv.len);
 
 		/*
 		 * This code extracts the generated IV and sets it
@@ -1671,26 +1686,26 @@ static int openssl_gcm_encrypt(struct aead_data *data, flags_t parsed_flags)
 		 */
 #ifndef OPENSSL_USE_OFFICIAL_INTERNAL_IV_GEN
 		logger(LOGGER_DEBUG, "Internal IV generation (IV size %u)\n",
-		       ivlen);
+			   ivlen);
 		/* 96 bit IV */
 		CKINT(alloc_buf(ivlen, &data->iv));
 
 		CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN,
 						data->iv.len, NULL),
-			    "EVP_CIPHER_CTX_ctrl() failed to set the IV length %u\n",
-			    data->iv.len);
+				"EVP_CIPHER_CTX_ctrl() failed to set the IV length %u\n",
+				data->iv.len);
 
 		CKINT_O(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IV_FIXED, 4,
-					    data->iv.buf));
+						data->iv.buf));
 		memcpy(data->iv.buf, EVP_CIPHER_CTX_iv_noconst(ctx),
-		       data->iv.len);
+			   data->iv.len);
 #endif
 	}
 
 	CKINT_O_LOG(EVP_CipherInit_ex(ctx, NULL, NULL, data->key.buf,
-				      data->iv.buf, 1),
-		    "EVP_CipherInit_ex() during second call failed (%s)\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+					  data->iv.buf, 1),
+			"EVP_CipherInit_ex() during second call failed (%s)\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 	/*
 	 * Generation of IV must come after setting key due to
@@ -1702,41 +1717,41 @@ static int openssl_gcm_encrypt(struct aead_data *data, flags_t parsed_flags)
 #ifdef OPENSSL_USE_OFFICIAL_INTERNAL_IV_GEN
 	if (!data->iv.len) {
 		logger(LOGGER_DEBUG, "Internal IV generation (IV size %u)\n",
-		       ivlen);
+			   ivlen);
 		/* 96 bit IV */
 		CKINT(alloc_buf(ivlen, &data->iv));
 
 		CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IV_FIXED, 4,
 						data->iv.buf),
-			    "EVP_CTRL_GCM_SET_IV_FIXED setting fixed value failed\n");
+				"EVP_CTRL_GCM_SET_IV_FIXED setting fixed value failed\n");
 		CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_IV_GEN,
 						0, data->iv.buf),
-			    "EVP_CIPHER_CTX_ctrl() failed to generate IV %d\n",
-			    ret);
+				"EVP_CIPHER_CTX_ctrl() failed to generate IV %d\n",
+				ret);
 	}
 #endif
 
 	if (data->assoc.len) {
 		CKINT_LOG(EVP_Cipher(ctx, NULL, data->assoc.buf,
-				     (unsigned int)data->assoc.len),
+					 (unsigned int)data->assoc.len),
 			  "EVP_EncryptUpdate() AAD failed\n");
 	}
 
 	if (data->data.len) {
 		if (EVP_Cipher(ctx, data->data.buf, data->data.buf,
-			       (unsigned int)data->data.len) !=
-		    (int)data->data.len) {
+				   (unsigned int)data->data.len) !=
+			(int)data->data.len) {
 			logger(LOGGER_WARN,"EVP_Cipher() finaliztion failed\n");
 			ret = -EFAULT;
 			goto out;
 		}
 		logger_binary(LOGGER_DEBUG, data->data.buf, data->data.len,
-			      "ciphertext");
+				  "ciphertext");
 	}
 
 	if (EVP_Cipher(ctx, NULL, NULL, 0) < 0) {
 		logger(LOGGER_ERR, "EVP_Cipher failed %s\n",
-		       ERR_error_string(ERR_get_error(), NULL));
+			   ERR_error_string(ERR_get_error(), NULL));
 		ret = -EFAULT;
 		goto out;
 	}
@@ -1744,8 +1759,8 @@ static int openssl_gcm_encrypt(struct aead_data *data, flags_t parsed_flags)
 	/* Get the tag */
 	CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG,
 					(int)data->tag.len, data->tag.buf),
-		    "EVP_CIPHER_CTX_ctrl() failed with tag length %zu\n",
-		    data->tag.len);
+			"EVP_CIPHER_CTX_ctrl() failed with tag length %zu\n",
+			data->tag.len);
 
 	logger_binary(LOGGER_DEBUG, data->tag.buf, data->tag.len, "tag");
 
@@ -1768,7 +1783,7 @@ static int openssl_gcm_decrypt(struct aead_data *data, flags_t parsed_flags)
 
 	if (data->iv.len < 12) {
 		logger(LOGGER_WARN,
-		       "IV length must be 12 or higher (see code for EVP_CTRL_AEAD_SET_IVLEN)\n");
+			   "IV length must be 12 or higher (see code for EVP_CTRL_AEAD_SET_IVLEN)\n");
 		return -EINVAL;
 	}
 
@@ -1791,23 +1806,23 @@ static int openssl_gcm_decrypt(struct aead_data *data, flags_t parsed_flags)
 	CKNULL(ctx, -ENOMEM);
 
 	CKINT_O_LOG(EVP_CipherInit_ex(ctx, type, NULL, NULL, NULL, 0),
-		    "EVP_CipherInit() failed\n");
+			"EVP_CipherInit() failed\n");
 
 	CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN,
 					(int)data->iv.len, NULL),
-		    "EVP_CIPHER_CTX_ctrl() for setting IV length failed\n");
+			"EVP_CIPHER_CTX_ctrl() for setting IV length failed\n");
 
 	CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG,
 					(int)data->tag.len, data->tag.buf),
-		    "EVP_CIPHER_CTX_ctrl() for setting tag failed\n");
+			"EVP_CIPHER_CTX_ctrl() for setting tag failed\n");
 
 	CKINT_O_LOG(EVP_CipherInit_ex(ctx, NULL, NULL, data->key.buf,
-				      data->iv.buf, 0),
-		    "EVP_CipherInit_ex() failed\n");
+					  data->iv.buf, 0),
+			"EVP_CipherInit_ex() failed\n");
 
 	if (data->assoc.len) {
 		CKINT_LOG(EVP_Cipher(ctx, NULL, data->assoc.buf,
-				     (unsigned int)data->assoc.len),
+					 (unsigned int)data->assoc.len),
 			  "EVP_EncryptUpdate() AAD failed\n");
 	}
 
@@ -1815,8 +1830,8 @@ static int openssl_gcm_decrypt(struct aead_data *data, flags_t parsed_flags)
 
 	if (data->data.len) {
 		if (EVP_Cipher(ctx, data->data.buf, data->data.buf,
-			       (unsigned int)data->data.len) !=
-		    (int)data->data.len) {
+				   (unsigned int)data->data.len) !=
+			(int)data->data.len) {
 			logger(LOGGER_DEBUG, "EVP_Cipher() finalization failed\n");
 			data->integrity_error = 1;
 		}
@@ -1849,7 +1864,7 @@ static int openssl_ccm_encrypt(struct aead_data *data, flags_t parsed_flags)
 	logger_binary(LOGGER_VERBOSE, data->iv.buf, data->iv.len, "iv");
 	logger_binary(LOGGER_VERBOSE, data->assoc.buf, data->assoc.len, "AAD");
 	logger_binary(LOGGER_DEBUG, data->data.buf, data->data.len,
-		      "plaintext");
+			  "plaintext");
 
 	CKINT(alloc_buf(taglen, &data->tag));
 
@@ -1859,23 +1874,23 @@ static int openssl_ccm_encrypt(struct aead_data *data, flags_t parsed_flags)
 	CKNULL(ctx, -ENOMEM);
 
 	CKINT_O_LOG(EVP_CipherInit_ex(ctx, type, NULL, NULL, NULL, 1),
-		    "EVP_CipherInit_ex() failed\n");
+			"EVP_CipherInit_ex() failed\n");
 
 	CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN,
 					(int)data->iv.len, NULL),
-		    "EVP_CTRL_CCM_SET_IVLEN failed\n");
+			"EVP_CTRL_CCM_SET_IVLEN failed\n");
 
 	CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, (int)taglen,
 					NULL),
-		    "EVP_CTRL_CCM_SET_TAG failed (%u)\n", taglen);
+			"EVP_CTRL_CCM_SET_TAG failed (%u)\n", taglen);
 
 	CKINT_O_LOG(EVP_CipherInit_ex(ctx, NULL, NULL, data->key.buf,
-				      data->iv.buf, 1),
-		    "EVP_CipherInit_ex() failed\n");
+					  data->iv.buf, 1),
+			"EVP_CipherInit_ex() failed\n");
 
 	/* Set the length as defined in the man page */
 	if (EVP_Cipher(ctx, NULL, NULL, (unsigned int)data->data.len) !=
-	    (int)data->data.len) {
+		(int)data->data.len) {
 		logger(LOGGER_WARN, "EVP_Cipher() setting length failed\n");
 		ret = -EFAULT;
 		goto out;
@@ -1887,31 +1902,31 @@ static int openssl_ccm_encrypt(struct aead_data *data, flags_t parsed_flags)
 	 */
 	if (data->assoc.len) {
 		CKINT_LOG(EVP_Cipher(ctx, NULL, data->assoc.buf,
-				     (unsigned int)data->assoc.len),
+					 (unsigned int)data->assoc.len),
 			  "EVP_EncryptUpdate() encrypt AAD failed\n");
 	}
 
 	if (EVP_Cipher(ctx, data->data.buf, data->data.buf,
-		       (unsigned int)data->data.len) !=
-	    (int)data->data.len) {
+			   (unsigned int)data->data.len) !=
+		(int)data->data.len) {
 		logger(LOGGER_WARN,"EVP_Cipher() finaliztion failed\n");
 		ret = -EFAULT;
 		goto out;
 	}
 
 	logger_binary(LOGGER_DEBUG, data->data.buf, data->data.len,
-		      "ciphertext");
+			  "ciphertext");
 
 	/* Get the tag */
 	if (0 == EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_GET_TAG,
-				     (int)data->tag.len, data->tag.buf)) {
+					 (int)data->tag.len, data->tag.buf)) {
 		logger(LOGGER_WARN, "EVP_CIPHER_CTX_ctrl failed (len: %zu)\n",
-		       data->tag.len);
+			   data->tag.len);
 		ret = -EFAULT;
 		goto out;
 	}
 	logger_binary(LOGGER_DEBUG, data->tag.buf, data->tag.len,
-		      "Generated tag");
+			  "Generated tag");
 
 	ret = 0;
 
@@ -1940,23 +1955,23 @@ static int openssl_ccm_decrypt(struct aead_data *data, flags_t parsed_flags)
 	logger_binary(LOGGER_DEBUG, data->tag.buf, data->tag.len, "tag");
 
 	CKINT_O_LOG(EVP_CipherInit_ex(ctx, type, NULL, NULL, NULL, 0),
-		    "EVP_CipherInit_ex() failed\n");
+			"EVP_CipherInit_ex() failed\n");
 
 	CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN,
 					(int)data->iv.len, NULL),
-		    "EVP_CTRL_CCM_SET_IVLEN failed\n");
+			"EVP_CTRL_CCM_SET_IVLEN failed\n");
 
 	CKINT_O_LOG(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG,
 					(int)data->tag.len, data->tag.buf),
-		    "EVP_CTRL_CCM_SET_TAG failed (%zu)\n", data->tag.len);
+			"EVP_CTRL_CCM_SET_TAG failed (%zu)\n", data->tag.len);
 
 	CKINT_O_LOG(EVP_CipherInit_ex(ctx, NULL, NULL, data->key.buf,
-				       data->iv.buf, 0),
-		    "EVP_CipherInit_ex() failed\n");
+					   data->iv.buf, 0),
+			"EVP_CipherInit_ex() failed\n");
 
 	/* Set the length as defined in the man page */
 	if (EVP_Cipher(ctx, NULL, NULL, (unsigned int)data->data.len) !=
-	    (int)data->data.len) {
+		(int)data->data.len) {
 		logger(LOGGER_WARN, "EVP_Cipher() setting length failed\n");
 		ret = -EFAULT;
 		goto out;
@@ -1964,15 +1979,15 @@ static int openssl_ccm_decrypt(struct aead_data *data, flags_t parsed_flags)
 
 	if (data->assoc.len != 0) {
 		CKINT_LOG(EVP_Cipher(ctx, NULL, data->assoc.buf,
-				     (unsigned int)data->assoc.len),
+					 (unsigned int)data->assoc.len),
 			  "EVP_EncryptUpdate() decrypt AAD failed\n");
 	}
 
 	data->integrity_error = 0;
 
 	if (EVP_Cipher(ctx, data->data.buf, data->data.buf,
-		       (unsigned int)data->data.len) !=
-	    (int)data->data.len) {
+			   (unsigned int)data->data.len) !=
+		(int)data->data.len) {
 		logger(LOGGER_DEBUG, "EVP_Cipher() finalization failed\n");
 		data->integrity_error = 1;
 	}
@@ -2004,7 +2019,7 @@ static void openssl_aead_backend(void)
  * DRBG cipher interface functions
  ************************************************/
 static size_t openssl_nonce(DRBG_ctx *dctx, unsigned char **pout,
-			    int entropy, size_t min_len, size_t max_len)
+				int entropy, size_t min_len, size_t max_len)
 {
 	(void) min_len;
 	(void) max_len;
@@ -2062,7 +2077,7 @@ static int openssl_drbg_generate(struct drbg_data *data, flags_t parsed_flags)
 	CKNULL(ctx, -ENOMEM);
 
 	logger_binary(LOGGER_DEBUG, data->entropy.buf, data->entropy.len,
-		      "entropy");
+			  "entropy");
 	t.entropy = &data->entropy;
 
 	logger_binary(LOGGER_DEBUG, data->nonce.buf, data->nonce.len, "nonce");
@@ -2072,39 +2087,39 @@ static int openssl_drbg_generate(struct drbg_data *data, flags_t parsed_flags)
 	DRBG_set_data(ctx, &t);
 
 	logger_binary(LOGGER_DEBUG, data->pers.buf, data->pers.len,
-		      "personalization string");
+			  "personalization string");
 
 	CKINT_O_LOG(DRBG_instantiate(ctx, data->pers.buf, data->pers.len),
-		    "DRBG instantiation failed: %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+			"DRBG instantiation failed: %s\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 	if (data->entropy_reseed.buffers[0].len) {
 		logger_binary(LOGGER_DEBUG,
-			      data->entropy_reseed.buffers[0].buf,
-			      data->entropy_reseed.buffers[0].len,
-			      "entropy reseed");
+				  data->entropy_reseed.buffers[0].buf,
+				  data->entropy_reseed.buffers[0].len,
+				  "entropy reseed");
 		t.entropy = &data->entropy_reseed.buffers[0];
 
 		if (data->addtl_reseed.buffers[0].len) {
 			logger_binary(LOGGER_DEBUG,
-				      data->addtl_reseed.buffers[0].buf,
-				      data->addtl_reseed.buffers[0].len,
-				      "addtl reseed");
+					  data->addtl_reseed.buffers[0].buf,
+					  data->addtl_reseed.buffers[0].len,
+					  "addtl reseed");
 		}
 		CKINT_O(DRBG_reseed(ctx, data->addtl_reseed.buffers[0].buf,
-				    data->addtl_reseed.buffers[0].len));
+					data->addtl_reseed.buffers[0].len));
 	}
 
 	if (data->pr) {
 		logger_binary(LOGGER_DEBUG,
-			      data->entropy_generate.buffers[0].buf,
-			      data->entropy_generate.buffers[0].len,
-			      "entropy generate 1");
+				  data->entropy_generate.buffers[0].buf,
+				  data->entropy_generate.buffers[0].len,
+				  "entropy generate 1");
 		t.entropy = &data->entropy_generate.buffers[0];
 	}
 
 	logger_binary(LOGGER_DEBUG, data->addtl_generate.buffers[0].buf,
-		      data->addtl_generate.buffers[0].len, "addtl generate 1");
+			  data->addtl_generate.buffers[0].len, "addtl generate 1");
 
 	CKINT(alloc_buf(data->rnd_data_bits_len / 8, &data->random));
 
@@ -2112,30 +2127,30 @@ static int openssl_drbg_generate(struct drbg_data *data, flags_t parsed_flags)
 				  data->entropy_generate.buffers[0].len?1:0,
 				  data->addtl_generate.buffers[0].buf,
 				  data->addtl_generate.buffers[0].len),
-		    "FIPS_drbg_generate failed\n");
+			"FIPS_drbg_generate failed\n");
 
 	logger_binary(LOGGER_DEBUG, data->random.buf, data->random.len,
-		      "random tmp");
+			  "random tmp");
 
 	if (data->pr) {
 		logger_binary(LOGGER_DEBUG,
-			      data->entropy_generate.buffers[1].buf,
-			      data->entropy_generate.buffers[1].len,
-			      "entropy generate 2");
+				  data->entropy_generate.buffers[1].buf,
+				  data->entropy_generate.buffers[1].len,
+				  "entropy generate 2");
 		t.entropy = &data->entropy_generate.buffers[1];
 	}
 
 	logger_binary(LOGGER_DEBUG, data->addtl_generate.buffers[1].buf,
-		      data->addtl_generate.buffers[1].len, "addtl generate 2");
+			  data->addtl_generate.buffers[1].len, "addtl generate 2");
 
 	CKINT_O_LOG(DRBG_generate(ctx, data->random.buf, data->random.len,
 				  data->entropy_generate.buffers[1].len?1:0,
 				  data->addtl_generate.buffers[1].buf,
 				  data->addtl_generate.buffers[1].len),
-		    "FIPS_drbg_generate failed\n");
+			"FIPS_drbg_generate failed\n");
 
 	logger_binary(LOGGER_DEBUG, data->random.buf, data->random.len,
-		      "random");
+			  "random");
 
 	ret = 0;
 
@@ -2204,7 +2219,7 @@ static int openssl_kdf_tls_op(struct kdf_tls_data *data, flags_t parsed_flags)
 				&data->master_secret.len));
 
 	logger_binary(LOGGER_DEBUG, data->master_secret.buf,
-		      data->master_secret.len, "master_secret");
+			  data->master_secret.len, "master_secret");
 
 	EVP_PKEY_CTX_free(pctx);
 	pctx = NULL;
@@ -2234,7 +2249,7 @@ static int openssl_kdf_tls_op(struct kdf_tls_data *data, flags_t parsed_flags)
 				&data->key_block.len));
 
 	logger_binary(LOGGER_DEBUG, data->key_block.buf, data->key_block.len,
-		      "keyblock");
+			  "keyblock");
 
 	ret = 0;
 
@@ -2259,7 +2274,7 @@ static void openssl_kdf_tls_backend(void)
  ************************************************/
 #ifdef UBUNTU
 # define	EVP_KDF_CTX		EVP_PKEY_CTX
-# define 	EVP_KDF_CTX_NEW_ID()	EVP_PKEY_CTX_new_id(EVP_PKEY_SSHKDF,NULL)
+# define	EVP_KDF_CTX_NEW_ID()	EVP_PKEY_CTX_new_id(EVP_PKEY_SSHKDF,NULL)
 # define	EVP_KDF_DERIVE_INIT(a)	EVP_PKEY_derive_init(a)
 # define	EVP_KDF_SET_MD(a,b)	EVP_PKEY_CTX_set_sshkdf_md(a,b)
 # define	EVP_KDF_SET_KEY(a,b,c)	EVP_PKEY_CTX_set1_sshkdf_key(a,b,c)
@@ -2315,34 +2330,34 @@ static int openssl_kdf_tls_op(struct kdf_tls_data *data, flags_t parsed_flags)
 	CKINT(alloc_buf(data->pre_master_secret.len, &data->master_secret));
 
 	CKINT_O_LOG(tls1_PRF(data->hashalg,
-			     TLS_MD_MASTER_SECRET_CONST,
-			     TLS_MD_MASTER_SECRET_CONST_SIZE,
-			     data->client_hello_random.buf,
-			     data->client_hello_random.len, NULL, 0,
-			     data->server_hello_random.buf,
-			     data->server_hello_random.len, NULL, 0,
-			     data->pre_master_secret.buf,
-			     data->pre_master_secret.len,
-			     data->master_secret.buf,
-			     data->master_secret.len),
+				 TLS_MD_MASTER_SECRET_CONST,
+				 TLS_MD_MASTER_SECRET_CONST_SIZE,
+				 data->client_hello_random.buf,
+				 data->client_hello_random.len, NULL, 0,
+				 data->server_hello_random.buf,
+				 data->server_hello_random.len, NULL, 0,
+				 data->pre_master_secret.buf,
+				 data->pre_master_secret.len,
+				 data->master_secret.buf,
+				 data->master_secret.len),
 		  "Generation of master secret failed\n");
 
 	logger_binary(LOGGER_DEBUG, data->master_secret.buf,
-		      data->master_secret.len, "master_secret");
+			  data->master_secret.len, "master_secret");
 
 	CKINT(alloc_buf(data->key_block_length / 8, &data->key_block));
 	CKINT_O_LOG(tls1_PRF(data->hashalg,
-			     TLS_MD_KEY_EXPANSION_CONST,
-			     TLS_MD_KEY_EXPANSION_CONST_SIZE,
-			     data->server_random.buf, data->server_random.len,
-			     data->client_random.buf, data->client_random.len,
-			     NULL, 0, NULL, 0,
-			     data->master_secret.buf, data->master_secret.len,
-			     data->key_block.buf, data->key_block.len),
+				 TLS_MD_KEY_EXPANSION_CONST,
+				 TLS_MD_KEY_EXPANSION_CONST_SIZE,
+				 data->server_random.buf, data->server_random.len,
+				 data->client_random.buf, data->client_random.len,
+				 NULL, 0, NULL, 0,
+				 data->master_secret.buf, data->master_secret.len,
+				 data->key_block.buf, data->key_block.len),
 		  "Generation of key block failed\n");
 
 	logger_binary(LOGGER_DEBUG, data->key_block.buf, data->key_block.len,
-		      "keyblock");
+			  "keyblock");
 
 	ret = 0;
 
@@ -2383,7 +2398,7 @@ static void openssl_kdf_108_backend(void)
  ************************************************/
 
 static int openssl_rsa_keygen_prime(struct rsa_keygen_prime_data *data,
-				    flags_t parsed_flags)
+					flags_t parsed_flags)
 {
 	BIGNUM *e = NULL, *p = NULL, *q = NULL;
 	RSA *rsa = NULL;
@@ -2428,7 +2443,7 @@ static int openssl_rsa_keygen_prime(struct rsa_keygen_prime_data *data,
 		data->keygen_success = 0;
 	} else {
 		logger(LOGGER_DEBUG,
-		       "RSA_generate_key_ex general error for RSA\n");
+			   "RSA_generate_key_ex general error for RSA\n");
 		ret = -EFAULT;
 	}
 
@@ -2442,15 +2457,16 @@ out:
 }
 
 static int openssl_rsa_keygen_internal(struct buffer *ebuf, uint32_t modulus,
-				       RSA **outkey, struct buffer *nbuf,
-				       struct buffer *dbuf, struct buffer *pbuf,
-				       struct buffer *qbuf)
+					   RSA **outkey, struct buffer *nbuf,
+					   struct buffer *dbuf, struct buffer *pbuf,
+					   struct buffer *qbuf)
 {
 	BIGNUM *e = NULL;
 	const BIGNUM *egen, *n, *d, *p, *q;
 	RSA *rsa = NULL;
 	unsigned int retry = 0;
 	int ret = 0;
+	logger(LOGGER_DEBUG, "ENTERED: openssl_rsa_keygen_internal\n");
 
 	if (!ebuf->len) {
 		unsigned int a;
@@ -2498,7 +2514,7 @@ static int openssl_rsa_keygen_internal(struct buffer *ebuf, uint32_t modulus,
 		retry++;
 	} while (ret != 1 && retry < 100);
 	CKINT_O_LOG(ret, "RSA_generate_key_ex() failed: %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+			ERR_error_string(ERR_get_error(), NULL));
 
 	openssl_rsa_get0_key(rsa, &n, &egen, &d);
 	openssl_rsa_get0_factors(rsa, &p, &q);
@@ -2532,10 +2548,10 @@ out:
 }
 
 static int openssl_rsa_keygen(struct rsa_keygen_data *data,
-			      flags_t parsed_flags)
+				  flags_t parsed_flags)
 {
 	(void)parsed_flags;
-
+	logger(LOGGER_DEBUG, "ENTERED: openssl_rsa_keygen\n");
 	return openssl_rsa_keygen_internal(&data->e, data->modulus, NULL,
 					   &data->n, &data->d, &data->p,
 					   &data->q);
@@ -2544,6 +2560,7 @@ static int openssl_rsa_keygen(struct rsa_keygen_data *data,
 static int openssl_rsa_keygen_en(struct buffer *ebuf, uint32_t modulus,
 				 void **privkey, struct buffer *nbuf)
 {
+	logger(LOGGER_DEBUG, "ENTERED: openssl_rsa_keygen_en\n");
 	return openssl_rsa_keygen_internal(ebuf, modulus, (RSA **)privkey, nbuf,
 					   NULL, NULL, NULL);
 }
@@ -2557,7 +2574,7 @@ static void openssl_rsa_free_key(void *privkey)
 }
 
 static int openssl_rsa_siggen(struct rsa_siggen_data *data,
-			      flags_t parsed_flags)
+				  flags_t parsed_flags)
 {
 	const EVP_MD *md = NULL;
 	EVP_MD_CTX *ctx = NULL;
@@ -2592,33 +2609,33 @@ static int openssl_rsa_siggen(struct rsa_siggen_data *data,
 	CKNULL(ctx, -ENOMEM);
 
 	CKINT_O_LOG(EVP_DigestSignInit(ctx, &pctx, md, NULL, pk),
-		    "EVP_DigestSignInit failed: %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+			"EVP_DigestSignInit failed: %s\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 	if (parsed_flags & FLAG_OP_RSA_SIG_PKCS1PSS) {
 		CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_padding(pctx,
 						RSA_PKCS1_PSS_PADDING),
-			    "Setting PSS type failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
+				"Setting PSS type failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
 		CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx,
 						data->saltlen),
-			    "Setting salt length to %u failed: %s\n",
-			    data->saltlen,
-			    ERR_error_string(ERR_get_error(), NULL));
+				"Setting salt length to %u failed: %s\n",
+				data->saltlen,
+				ERR_error_string(ERR_get_error(), NULL));
 	}
 
 	if (parsed_flags & FLAG_OP_RSA_SIG_X931) {
 		CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_padding(pctx,
 						RSA_X931_PADDING),
-			    "Setting X9.31 type failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
+				"Setting X9.31 type failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
 	}
 
 	CKINT_O_LOG(EVP_DigestSignUpdate(ctx, data->msg.buf, data->msg.len),
-		    "EVP_DigestSignUpdate failed: %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+			"EVP_DigestSignUpdate failed: %s\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 	CKINT_O_LOG(EVP_DigestSignFinal(ctx, data->sig.buf, &siglen),
-		    "EVP_DigestSignFinal failed: %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+			"EVP_DigestSignFinal failed: %s\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 	logger_binary(LOGGER_DEBUG, data->sig.buf, data->sig.len, "sig");
 
@@ -2632,7 +2649,7 @@ out:
 }
 
 static int openssl_rsa_sigver(struct rsa_sigver_data *data,
-			      flags_t parsed_flags)
+				  flags_t parsed_flags)
 {
 	const EVP_MD *md = NULL;
 	EVP_MD_CTX *ctx = NULL;
@@ -2665,7 +2682,7 @@ static int openssl_rsa_sigver(struct rsa_sigver_data *data,
 	CKNULL(rsa, -ENOMEM);
 
 	CKINT_O_LOG(openssl_rsa_set0_key(rsa, n, e, NULL),
-		    "Assembly of RSA key failed\n");
+			"Assembly of RSA key failed\n");
 
 	pk = EVP_PKEY_new();
 	CKNULL(pk, -ENOMEM);
@@ -2680,20 +2697,20 @@ static int openssl_rsa_sigver(struct rsa_sigver_data *data,
 	if (parsed_flags & FLAG_OP_RSA_SIG_PKCS1PSS) {
 		CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_padding(pctx,
 						RSA_PKCS1_PSS_PADDING),
-			    "Setting PSS type failed: %s\n",
-			    ERR_error_string(ERR_get_error(), NULL));
+				"Setting PSS type failed: %s\n",
+				ERR_error_string(ERR_get_error(), NULL));
 		CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx,
 						data->saltlen),
-			    "Setting salt length to %u failed: %s\n",
-			    data->saltlen,
-			    ERR_error_string(ERR_get_error(), NULL));
+				"Setting salt length to %u failed: %s\n",
+				data->saltlen,
+				ERR_error_string(ERR_get_error(), NULL));
 	}
 
 	if (parsed_flags & FLAG_OP_RSA_SIG_X931) {
 		CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_padding(pctx,
 						RSA_X931_PADDING),
-			    "Setting X9.31 type failed: %s\n",
-			    ERR_error_string(ERR_get_error(), NULL));
+				"Setting X9.31 type failed: %s\n",
+				ERR_error_string(ERR_get_error(), NULL));
 	}
 
         CKINT_O(EVP_DigestVerifyUpdate(ctx, data->msg.buf, data->msg.len));
@@ -2704,12 +2721,12 @@ static int openssl_rsa_sigver(struct rsa_sigver_data *data,
 		data->sig_result = 0;
 	} else if (ret == 1) {
 		logger(LOGGER_DEBUG,
-		       "Signature verification: signature good\n");
+			   "Signature verification: signature good\n");
 		data->sig_result = 1;
 		ret = 0;
 	} else {
 		logger(LOGGER_WARN,
-		       "Signature verification: general error\n");
+			   "Signature verification: general error\n");
 		ret = -EFAULT;
 	}
 
@@ -2751,23 +2768,23 @@ openssl_rsa_decryption_primitive(struct rsa_decryption_primitive_data *data,
 	CKINT_O_LOG(EVP_PKEY_decrypt_init(ctx), "PKEY decrypt init failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_NO_PADDING),
-		    "Disabling padding failed\n")
+			"Disabling padding failed\n")
 
 	/* Determine buffer length */
 	CKINT_O_LOG(EVP_PKEY_decrypt(ctx, NULL, &outlen, data->msg.buf,
-				     data->msg.len),
-		    "Getting plaintext length failed\n");
+					 data->msg.len),
+			"Getting plaintext length failed\n");
 
 	CKINT(alloc_buf(outlen, &data->s));
 
 	ret = EVP_PKEY_decrypt(ctx, data->s.buf, &outlen, data->msg.buf,
-			       data->msg.len);
+				   data->msg.len);
 	if (ret == 1) {
 		logger(LOGGER_DEBUG, "Decryption successful\n");
 		data->dec_result = 1;
 	} else {
 		logger(LOGGER_DEBUG, "Decryption failed %s\n",
-		       ERR_error_string(ERR_get_error(), NULL));
+			   ERR_error_string(ERR_get_error(), NULL));
 		data->dec_result = 0;
 	}
 
@@ -2787,7 +2804,7 @@ static struct rsa_backend openssl_rsa =
 	openssl_rsa_siggen,     /* rsa_siggen */
 	openssl_rsa_sigver,     /* rsa_sigver */
 	openssl_rsa_keygen_prime,              /* rsa_keygen_prime */
-	NULL,		        /* rsa_keygen_prov_prime */
+	NULL,				/* rsa_keygen_prov_prime */
 	openssl_rsa_keygen_en,
 	openssl_rsa_free_key,
 	NULL,
@@ -2801,9 +2818,9 @@ static void openssl_rsa_backend(void)
 }
 
 static int openssl_dh_set_param(struct buffer *P /* [in] */,
-			        struct buffer *Q /* [in] */,
-			        struct buffer *G /* [in] */,
-			        uint64_t safeprime /* [in] */,
+					struct buffer *Q /* [in] */,
+					struct buffer *G /* [in] */,
+					uint64_t safeprime /* [in] */,
 				DH *dh /* [out] */,
 				size_t *keylen /* [out] */)
 {
@@ -2848,7 +2865,7 @@ static int openssl_dh_set_param(struct buffer *P /* [in] */,
 	}
 
 	CKINT_O_LOG(openssl_dh_set0_pqg(dh, p, q, g),
-		    "DSA_set0_pqg failed\n");
+			"DSA_set0_pqg failed\n");
 	pqg_consumed = 1;
 
 	ret = 0;
@@ -2865,11 +2882,11 @@ out:
 }
 
 static int _openssl_dh_keygen(struct buffer *P /* [in] */,
-			      struct buffer *Q /* [in] */,
-			      struct buffer *G /* [in] */,
-			      uint64_t safeprime /* [in] */,
-			      struct buffer *X /* [out] */,
-			      struct buffer *Y /* [out] */)
+				  struct buffer *Q /* [in] */,
+				  struct buffer *G /* [in] */,
+				  uint64_t safeprime /* [in] */,
+				  struct buffer *X /* [out] */,
+				  struct buffer *Y /* [out] */)
 {
 	DH *dh = NULL;
 	const BIGNUM *x, *y;
@@ -2900,12 +2917,12 @@ out:
 }
 
 static int _openssl_dsa_keygen(struct buffer *P /* [in] */,
-			       struct buffer *Q /* [in] */,
-			       struct buffer *G /* [in] */,
-			       uint64_t safeprime /* [in] */,
-			       struct buffer *X /* [out] */,
-			       struct buffer *Y /* [out] */,
-			       DSA **dsa)
+				   struct buffer *Q /* [in] */,
+				   struct buffer *G /* [in] */,
+				   uint64_t safeprime /* [in] */,
+				   struct buffer *X /* [out] */,
+				   struct buffer *Y /* [out] */,
+				   DSA **dsa)
 {
 	BIGNUM *p = NULL, *q = NULL, *g = NULL;
 	const BIGNUM *x, *y;
@@ -2934,7 +2951,7 @@ static int _openssl_dsa_keygen(struct buffer *P /* [in] */,
 	CKNULL_LOG(*dsa, -ENOMEM, "DSA_new() failed\n");
 
 	CKINT_O_LOG(openssl_dsa_set0_pqg(*dsa, p, q, g),
-		    "DSA_set0_pqg failed\n");
+			"DSA_set0_pqg failed\n");
 	pqg_consumed = 1;
 
 	CKINT_O_LOG(DSA_generate_key(*dsa), "DSA_generate_key() failed\n");
@@ -2961,7 +2978,7 @@ out:
 }
 
 static int openssl_dsa_keygen(struct dsa_keygen_data *data,
-			      flags_t parsed_flags)
+				  flags_t parsed_flags)
 {
 	struct dsa_pqggen_data *pqg = &data->pqg;
 	DSA *dsa = NULL;
@@ -2990,7 +3007,7 @@ out:
 }
 
 static int openssl_dh_keyver(struct dsa_keyver_data *data,
-			     flags_t parsed_flags)
+				 flags_t parsed_flags)
 {
 	DH *dh = NULL;
 	BIGNUM *y = NULL, *x = NULL;
@@ -3028,7 +3045,7 @@ static int openssl_dh_keyver(struct dsa_keyver_data *data,
 	if (BN_cmp(ny, y) != 0) {
 		data->keyver_success = 0;
 		logger(LOGGER_DEBUG,
-		       "Key verification failed: provided Y and calculated Y inconsistent\n");
+			   "Key verification failed: provided Y and calculated Y inconsistent\n");
 		ret = 0;
 		goto out;
 	}
@@ -3037,12 +3054,12 @@ static int openssl_dh_keyver(struct dsa_keyver_data *data,
 	/* Check appropriateness of public key */
 	int check_code = 0;
 	CKINT_O_LOG(DH_check_pub_key(dh, y, &check_code),
-		    "DH_check_pub_key failed\n");
+			"DH_check_pub_key failed\n");
 	if (check_code != 0) {
 		data->keyver_success = 0;
 		logger(LOGGER_DEBUG,
-		       "Key verification failed with error code %d\n",
-		       check_code);
+			   "Key verification failed with error code %d\n",
+			   check_code);
 		ret = 0;
 		goto out;
 	}
@@ -3065,7 +3082,7 @@ out:
 }
 
 static int openssl_dsa_sigver(struct dsa_sigver_data *data,
-			      flags_t parsed_flags)
+				  flags_t parsed_flags)
 {
 	struct dsa_pqggen_data *pqg = &data->pqg;
 	EVP_MD_CTX *ctx = NULL;
@@ -3108,11 +3125,11 @@ static int openssl_dsa_sigver(struct dsa_sigver_data *data,
 	CKNULL(s, -ENOMEM);
 
 	CKINT_O_LOG(openssl_dsa_set0_pqg(dsa, p, q, g),
-		    "DSA_set0_pqg failed\n");
+			"DSA_set0_pqg failed\n");
 	pqg_consumed = 1;
 
 	CKINT_O_LOG(openssl_dsa_set0_key(dsa, y, NULL),
-		    "DSA_set0_key failed\n");
+			"DSA_set0_key failed\n");
 	key_consumed = 1;
 
 	CKINT_O_LOG(openssl_dsa_SIG_set0(sig, r, s), "DSA_SIG_set0 failed\n");
@@ -3155,12 +3172,12 @@ static int openssl_dsa_sigver(struct dsa_sigver_data *data,
 		data->sigver_success = 0;
 	} else if (ret == 1) {
 		logger(LOGGER_DEBUG,
-		       "Signature verification: signature good\n");
+			   "Signature verification: signature good\n");
 		data->sigver_success = 1;
 		ret = 0;
 	} else {
 		logger(LOGGER_WARN,
-		       "Signature verification: general error\n");
+			   "Signature verification: general error\n");
 		ret = -EFAULT;
 	}
 
@@ -3198,7 +3215,7 @@ static int openssl_dsa_keygen_en(struct dsa_pqggen_data *pqg, struct buffer *Y,
 	int ret;
 
 	//_openssl_dsa_pqg_gen_public_api(&data->P, &data->Q, &data->G,
-	//				      data->L));
+	//					  data->L));
 
 	CKINT(_openssl_dsa_keygen(&pqg->P, &pqg->Q, &pqg->G, pqg->safeprime,
 				  &X, Y, &dsa));
@@ -3219,7 +3236,7 @@ static void openssl_dsa_free_key(void *privkey)
 }
 
 static int openssl_dsa_siggen(struct dsa_siggen_data *data,
-			      flags_t parsed_flags)
+				  flags_t parsed_flags)
 {
 	struct dsa_pqggen_data *pqg = &data->pqg;
 	EVP_MD_CTX *ctx = NULL;
@@ -3267,7 +3284,7 @@ static int openssl_dsa_siggen(struct dsa_siggen_data *data,
 
 	if (sizeof(sig_buf) < (unsigned long)EVP_PKEY_size(pk)) {
 		logger(LOGGER_ERR,
-		       "Programming error, buffer size insufficient\n");
+			   "Programming error, buffer size insufficient\n");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -3303,20 +3320,20 @@ static int openssl_dsa_siggen(struct dsa_siggen_data *data,
 
 		if (!ver.sigver_success) {
 			logger(LOGGER_ERR,
-			       "Verification of generated signature failed!\n");
+				   "Verification of generated signature failed!\n");
 
 			logger_binary(LOGGER_ERR, data->P.buf, data->P.len,
-				      "P");
+					  "P");
 			logger_binary(LOGGER_ERR, data->Q.buf, data->Q.len,
-				      "Q");
+					  "Q");
 			logger_binary(LOGGER_ERR, data->G.buf, data->G.len,
-				      "G");
+					  "G");
 			logger_binary(LOGGER_ERR, data->Y.buf, data->Y.len,
-				      "Y");
+					  "Y");
 			logger_binary(LOGGER_ERR, data->R.buf, data->R.len,
-				      "R");
+					  "R");
 			logger_binary(LOGGER_ERR, data->S.buf, data->S.len,
-				      "S");
+					  "S");
 
 			ret = -EFAULT;
 			goto out;
@@ -3505,7 +3522,7 @@ static int openssl_ecdsa_keygen(struct ecdsa_keygen_data *data,
 	d = EC_KEY_get0_private_key(key);
 
 	ecdsa_get_bufferlen(data->cipher, &dbufferlen, &xbufferlen,
-			    &ybufferlen);
+				&ybufferlen);
 	CKINT(alloc_buf(dbufferlen, &data->d));
 	CKINT(alloc_buf(xbufferlen, &data->Qx));
 	CKINT(alloc_buf(ybufferlen, &data->Qy));
@@ -3542,11 +3559,11 @@ static int openssl_ecdsa_pkvver(struct ecdsa_pkvver_data *data,
 	logger_binary(LOGGER_DEBUG, data->Qy.buf, data->Qy.len, "Qy");
 
 	Qx = BN_bin2bn((const unsigned char *)data->Qx.buf, (int)data->Qx.len,
-		       Qx);
+			   Qx);
 	CKNULL(Qx, -ENOMEM);
 
 	Qy = BN_bin2bn((const unsigned char *)data->Qy.buf, (int)data->Qy.len,
-		       Qy);
+			   Qy);
 	CKNULL(Qy, -ENOMEM);
 
 	CKINT(_openssl_ecdsa_curves(data->cipher, &nid));
@@ -3678,7 +3695,7 @@ static int openssl_ecdsa_siggen(struct ecdsa_siggen_data *data,
 	openssl_ecdsa_SIG_get0(sig, &R, &S);
 
 	ecdsa_get_bufferlen(data->cipher, &dbufferlen, &xbufferlen,
-			    &ybufferlen);
+				&ybufferlen);
 	CKINT(alloc_buf(xbufferlen, &data->R));
 	CKINT(alloc_buf(xbufferlen, &data->S));
 
@@ -3716,11 +3733,11 @@ static int openssl_ecdsa_convert(struct ecdsa_sigver_data *data,
 	CKNULL(sig, -EFAULT);
 
 	R = BN_bin2bn((const unsigned char *) data->R.buf, (int)data->R.len,
-		      NULL);
+			  NULL);
 	CKNULL(R, -EFAULT);
 
 	S = BN_bin2bn((const unsigned char *) data->S.buf, (int)data->S.len,
-		      NULL);
+			  NULL);
 	CKNULL(S, -EFAULT);
 
 	CKINT_O(openssl_ecdsa_SIG_set0(sig, R, S));
@@ -3734,11 +3751,11 @@ static int openssl_ecdsa_convert(struct ecdsa_sigver_data *data,
 	logger_binary(LOGGER_DEBUG, data->Qy.buf, data->Qy.len, "Qy");
 
 	Qx = BN_bin2bn((const unsigned char *) data->Qx.buf, (int)data->Qx.len,
-		       NULL);
+			   NULL);
 	CKNULL(Qx, -EFAULT);
 
 	Qy = BN_bin2bn((const unsigned char *) data->Qy.buf, (int)data->Qy.len,
-		       NULL);
+			   NULL);
 	CKNULL(Qy, -EFAULT);
 
 	CKINT_O(EC_KEY_set_public_key_affine_coordinates(key, Qx, Qy));
@@ -3765,7 +3782,7 @@ out:
 
 static int
 openssl_ecdsa_sigver_primitive(struct ecdsa_sigver_data *data,
-			       flags_t parsed_flags)
+				   flags_t parsed_flags)
 {
 	EVP_PKEY_CTX *ctx = NULL;
 	EVP_PKEY *key = NULL;
@@ -3797,13 +3814,13 @@ openssl_ecdsa_sigver_primitive(struct ecdsa_sigver_data *data,
 	CKINT_O_LOG(EVP_PKEY_verify_init(ctx), "PKEY verify init failed\n");
 
 	ret = EVP_PKEY_verify(ctx, der_sig, der_sig_len, data->msg.buf,
-			      data->msg.len);
+				  data->msg.len);
 	if (ret == 1) {
 		logger(LOGGER_DEBUG, "Signature verification successful\n");
 		data->sigver_success = 1;
 	} else {
 		logger(LOGGER_DEBUG, "Signature verification failed %s\n",
-		       ERR_error_string(ERR_get_error(), NULL));
+			   ERR_error_string(ERR_get_error(), NULL));
 		data->sigver_success = 0;
 	}
 
@@ -3869,12 +3886,12 @@ static int openssl_ecdsa_sigver(struct ecdsa_sigver_data *data,
 		data->sigver_success = 0;
 	} else if (ret == 1) {
 		logger(LOGGER_DEBUG,
-		       "Signature verification: signature good\n");
+			   "Signature verification: signature good\n");
 		data->sigver_success = 1;
 		ret = 0;
 	} else {
 		logger(LOGGER_WARN,
-		       "Signature verification: general error\n");
+			   "Signature verification: general error\n");
 		ret = -EFAULT;
 	}
 
@@ -3931,26 +3948,26 @@ static int openssl_hash_ss(uint64_t cipher, struct buffer *ss,
 			CKINT_LOG(alloc_buf((size_t)EVP_MD_size(md), hashzz),
 				  "Cannot allocate hashzz buffer\n");
 			logger(LOGGER_DEBUG,
-			       "Hash buffer of size %zu allocated\n",
-			       hashzz->len);
+				   "Hash buffer of size %zu allocated\n",
+				   hashzz->len);
 		}
 
 		ctx = EVP_MD_CTX_create();
 		CKNULL(ctx, -ENOMEM);
 
 		CKINT_O_LOG(EVP_DigestInit(ctx, md),
-			    "EVP_DigestInit() failed\n");
+				"EVP_DigestInit() failed\n");
 		CKINT_O_LOG(EVP_DigestUpdate(ctx, ss->buf, ss->len),
-			    "EVP_DigestUpdate() failed\n");
+				"EVP_DigestUpdate() failed\n");
 		CKINT_O_LOG(EVP_DigestFinal(ctx, hashzz_tmp, &hashlen),
-			    "EVP_DigestFinal() failed\n");
+				"EVP_DigestFinal() failed\n");
 
 		logger_binary(LOGGER_DEBUG, hashzz_tmp, hashlen,
-			      "shared secret hash");
+				  "shared secret hash");
 
 		if (compare) {
 			logger_binary(LOGGER_DEBUG, hashzz->buf, hashzz->len,
-				      "expected shared secret hash");
+					  "expected shared secret hash");
 			if (memcmp(hashzz->buf, hashzz_tmp, hashzz->len))
 				ret = -ENOENT;
 			else
@@ -3966,7 +3983,7 @@ static int openssl_hash_ss(uint64_t cipher, struct buffer *ss,
 				goto out;
 			}
 			logger_binary(LOGGER_DEBUG, hashzz->buf, hashzz->len,
-				      "expected shared secret hash");
+					  "expected shared secret hash");
 			if (memcmp(hashzz->buf, ss->buf, hashzz->len))
 				ret = -ENOENT;
 			else
@@ -4017,26 +4034,26 @@ static int openssl_dh_ss_common(uint64_t cipher,
 
 	logger_binary(LOGGER_DEBUG, Yrem->buf, Yrem->len, "Yrem");
 	bn_Yrem = BN_bin2bn((const unsigned char *)Yrem->buf, (int)Yrem->len,
-			    NULL);
+				NULL);
 	CKNULL_LOG(bn_Yrem, -ENOMEM, "BN_bin2bn() failed\n");
 
 	if (!Xloc->len || !Yloc->len) {
 		CKINT_O_LOG(DH_generate_key(dh), "DH_generate_key failed: %s\n",
-			    ERR_error_string(ERR_get_error(), NULL));
+				ERR_error_string(ERR_get_error(), NULL));
 
 		openssl_dh_get0_key(dh, &cbn_Yloc, &cbn_Xloc);
 
 		CKINT(openssl_bn2buffer(cbn_Yloc, Yloc));
 		logger_binary(LOGGER_DEBUG, Yloc->buf, Yloc->len,
-			      "generated Yloc");
+				  "generated Yloc");
 	} else {
 		logger_binary(LOGGER_DEBUG, Xloc->buf, Xloc->len, "used Xloc");
 		bn_Xloc = BN_bin2bn((const unsigned char *)Xloc->buf,
-				    (int)Xloc->len, NULL);
+					(int)Xloc->len, NULL);
 		CKNULL_LOG(bn_Xloc, -ENOMEM, "BN_bin2bn() failed\n");
 
 		CKINT_O_LOG(openssl_dh_set0_key(dh, NULL, bn_Xloc),
-			    "DH_set0_key failed\n");
+				"DH_set0_key failed\n");
 		localkey_consumed = 1;
 	}
 
@@ -4045,7 +4062,7 @@ static int openssl_dh_ss_common(uint64_t cipher,
 	/* Compute the shared secret */
 	if (0 > DH_compute_key_padded(ss.buf, bn_Yrem, dh)) {
 		logger(LOGGER_DEBUG, "Cannot generate shared secret %s\n",
-		       ERR_error_string(ERR_get_error(), NULL));
+			   ERR_error_string(ERR_get_error(), NULL));
 
 		/*
 		 * This error may be possible if the key does not match PQG.
@@ -4081,21 +4098,21 @@ static int openssl_dh_ss(struct dh_ss_data *data, flags_t parsed_flags)
 	(void)parsed_flags;
 
 	return openssl_dh_ss_common(data->cipher, data->safeprime,
-				    &data->P, &data->Q, &data->G,
-				    &data->Yrem,
-				    &data->Xloc, &data->Yloc,
-				    &data->hashzz);
+					&data->P, &data->Q, &data->G,
+					&data->Yrem,
+					&data->Xloc, &data->Yloc,
+					&data->hashzz);
 }
 
 static int openssl_dh_ss_ver(struct dh_ss_ver_data *data,
-			       flags_t parsed_flags)
+				   flags_t parsed_flags)
 {
 	int ret = openssl_dh_ss_common(data->cipher, data->safeprime,
-				       &data->P, &data->Q,
-				       &data->G,
-				       &data->Yrem,
-				       &data->Xloc, &data->Yloc,
-				       &data->hashzz);
+					   &data->P, &data->Q,
+					   &data->G,
+					   &data->Yrem,
+					   &data->Xloc, &data->Yloc,
+					   &data->hashzz);
 
 	(void)parsed_flags;
 
@@ -4142,13 +4159,13 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 	size_t dbufferlen, xbufferlen, ybufferlen;
 	const BIGNUM *d = NULL;
 	BIGNUM *Qx = NULL, *Qy = NULL, *localQx = NULL, *localQy = NULL,
-	       *locald = NULL;
+		   *locald = NULL;
 	EC_GROUP *group = NULL;
 	BUFFER_INIT(ss);
 	int nid = 0, ret = 0;
 
 	ecdsa_get_bufferlen(cipher, &dbufferlen, &xbufferlen,
-			    &ybufferlen);
+				&ybufferlen);
 
 	CKINT_LOG(_openssl_ecdsa_curves(cipher, &nid),
 		  "Conversion of curve failed\n");
@@ -4169,10 +4186,10 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 	CKNULL_LOG(c, -ENOMEM, "BN_CTX_new failed\n");
 
 	if (EC_METHOD_get_field_type(EC_GROUP_method_of(group))
-	    == NID_X9_62_prime_field) {
+		== NID_X9_62_prime_field) {
 		CKINT_O(EC_POINT_set_affine_coordinates_GFp(group,
-							    remote_pubkey,
-							    Qx, Qy, c));
+								remote_pubkey,
+								Qx, Qy, c));
 	} else {
 #ifdef OPENSSL_NO_EC2M
 		logger(LOGGER_WARN, "GF2m not supported\n");
@@ -4180,8 +4197,8 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 		goto out;
 #else
 		CKINT_O(EC_POINT_set_affine_coordinates_GF2m(group,
-							     remote_pubkey,
-							     Qx, Qy, c));
+								 remote_pubkey,
+								 Qx, Qy, c));
 #endif
 	}
 
@@ -4201,8 +4218,8 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 			CKINT(alloc_buf(ybufferlen, Qyloc));
 
 		CKINT_O_LOG(EC_KEY_generate_key(local_key),
-			    "Cannot generate local key %s\n",
-			    ERR_error_string(ERR_get_error(), NULL));
+				"Cannot generate local key %s\n",
+				ERR_error_string(ERR_get_error(), NULL));
 
 		localQx = BN_new();
 		CKNULL(localQx, -ENOMEM);
@@ -4213,8 +4230,8 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 
 		if (BN_num_bytes(localQx) > (int)Qxloc->len) {
 			logger(LOGGER_ERR,
-			       "BUG: OpenSSL Qx longer (%u) than expected (%zu)\n",
-			       BN_num_bytes(localQx), Qxloc->len);
+				   "BUG: OpenSSL Qx longer (%u) than expected (%zu)\n",
+				   BN_num_bytes(localQx), Qxloc->len);
 			ret = -EFAULT;
 			goto out;
 		}
@@ -4222,8 +4239,8 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 			  Qxloc->buf - BN_num_bytes(localQx) + Qxloc->len);
 		if (BN_num_bytes(localQy) > (int)Qyloc->len) {
 			logger(LOGGER_ERR,
-			       "BUG: OpenSSL Qx longer (%u) than expected (%zu)\n",
-			       BN_num_bytes(localQy), Qyloc->len);
+				   "BUG: OpenSSL Qx longer (%u) than expected (%zu)\n",
+				   BN_num_bytes(localQy), Qyloc->len);
 			ret = -EFAULT;
 			goto out;
 		}
@@ -4234,32 +4251,32 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 
 		if (BN_num_bytes(d) > (int)privloc->len) {
 			logger(LOGGER_ERR,
-			       "BUG: OpenSSL privkey longer (%u) than expected (%zu)\n",
-			       BN_num_bytes(d), privloc->len);
+				   "BUG: OpenSSL privkey longer (%u) than expected (%zu)\n",
+				   BN_num_bytes(d), privloc->len);
 			ret = -EFAULT;
 			goto out;
 		}
 		BN_bn2bin(d, privloc->buf - BN_num_bytes(d) + privloc->len);
 
 		logger_binary(LOGGER_DEBUG, Qxloc->buf, Qxloc->len,
-			      "generated local Qx");
+				  "generated local Qx");
 		logger_binary(LOGGER_DEBUG, Qyloc->buf, Qyloc->len,
-			      "generated local Qy");
+				  "generated local Qy");
 		logger_binary(LOGGER_DEBUG, privloc->buf, privloc->len,
-			      "generated local private key");
+				  "generated local private key");
 	} else {
 		/* Use existing local key */
 
 		localQx = BN_bin2bn((const unsigned char *)Qxloc->buf,
-				    (int)Qxloc->len, localQx);
+					(int)Qxloc->len, localQx);
 		CKNULL(localQx, -ENOMEM);
 
 		localQy = BN_bin2bn((const unsigned char *)Qyloc->buf,
-				    (int)Qyloc->len, localQy);
+					(int)Qyloc->len, localQy);
 		CKNULL(localQy, -ENOMEM);
 
 		locald = BN_bin2bn((const unsigned char *)privloc->buf,
-				    (int)privloc->len, locald);
+					(int)privloc->len, locald);
 		CKNULL(localQy, -ENOMEM);
 
 		ret = EC_KEY_set_private_key(local_key, locald);
@@ -4269,12 +4286,12 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 		}
 
 		ret = EC_KEY_set_public_key_affine_coordinates(local_key,
-							       localQx,
-							       localQy);
+								   localQx,
+								   localQy);
 		if (ret != 1) {
 			logger(LOGGER_DEBUG,
-			       "EC_KEY_set_public_key_affine_coordinates failed: %s\n",
-			       ERR_error_string(ERR_get_error(), NULL));
+				   "EC_KEY_set_public_key_affine_coordinates failed: %s\n",
+				   ERR_error_string(ERR_get_error(), NULL));
 			ret = -EOPNOTSUPP;
 			goto out;
 		}
@@ -4286,7 +4303,7 @@ static int openssl_ecdh_ss_common(uint64_t cipher,
 	if (0 == ECDH_compute_key(ss.buf, ss.len, remote_pubkey,
 				  local_key, NULL)) {
 		logger(LOGGER_DEBUG, "Cannot generate shared secret %s\n",
-		       ERR_error_string(ERR_get_error(), NULL));
+			   ERR_error_string(ERR_get_error(), NULL));
 
 		/*
 		 * This error may be possible if the point is not on the curve.
@@ -4330,13 +4347,13 @@ static int openssl_ecdh_ss(struct ecdh_ss_data *data, flags_t parsed_flags)
 	(void)parsed_flags;
 
 	return openssl_ecdh_ss_common(data->cipher, &data->Qxrem, &data->Qyrem,
-				      &data->privloc,
-				      &data->Qxloc, &data->Qyloc,
-				      &data->hashzz);
+					  &data->privloc,
+					  &data->Qxloc, &data->Qyloc,
+					  &data->hashzz);
 }
 
 static int openssl_ecdh_ss_ver(struct ecdh_ss_ver_data *data,
-			       flags_t parsed_flags)
+				   flags_t parsed_flags)
 {
 	int ret = openssl_ecdh_ss_common(data->cipher, &data->Qxrem,
 					 &data->Qyrem,
@@ -4395,11 +4412,11 @@ static int openssl_pbkdf_generate(struct pbkdf_data *data,
 	CKINT(alloc_buf(derived_key_bytes, &data->derived_key));
 
 	CKINT_O_LOG(PKCS5_PBKDF2_HMAC((const char *)data->password.buf,
-				      (int)data->password.len,
-				      data->salt.buf, (int)data->salt.len,
-				      (int)data->iteration_count,
-				      md, (int)data->derived_key.len,
-				      data->derived_key.buf), "PBKDF failed\n");
+					  (int)data->password.len,
+					  data->salt.buf, (int)data->salt.len,
+					  (int)data->iteration_count,
+					  md, (int)data->derived_key.len,
+					  data->derived_key.buf), "PBKDF failed\n");
 
 out:
 	return ret;
@@ -4449,7 +4466,7 @@ static int openssl_rsa_oaep_encrypt(struct kts_ifc_data *data)
 	CKNULL(rsa, -ENOMEM);
 
 	CKINT_O_LOG(openssl_rsa_set0_key(rsa, n, e, NULL),
-		    "Assembly of RSA key failed\n");
+			"Assembly of RSA key failed\n");
 
 	pk = EVP_PKEY_new();
 	CKNULL(pk, -ENOMEM);
@@ -4462,22 +4479,22 @@ static int openssl_rsa_oaep_encrypt(struct kts_ifc_data *data)
 	CKINT_O_LOG(EVP_PKEY_encrypt_init(ctx), "PKEY encrypt init failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING),
-		    "Setting OAEP padding failed\n");
+			"Setting OAEP padding failed\n");
 	CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md),
-		    "Setting of OAEP MD failed\n");
+			"Setting of OAEP MD failed\n");
 
 	/* Determine buffer length */
 	CKINT_O_LOG(EVP_PKEY_encrypt(ctx, NULL, &outlen, init->dkm.buf,
-				     init->dkm.len),
-		    "Getting ciphertext length failed %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+					 init->dkm.len),
+			"Getting ciphertext length failed %s\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 	CKINT(alloc_buf(outlen, &init->iut_c));
 
 	CKINT_O_LOG(EVP_PKEY_encrypt(ctx, init->iut_c.buf, &outlen,
-				     init->dkm.buf, init->dkm.len),
-		    "RSA OAEP encryption failed %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+					 init->dkm.buf, init->dkm.len),
+			"RSA OAEP encryption failed %s\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 out:
 	if (pk)
@@ -4523,9 +4540,9 @@ static int openssl_rsa_oaep_decrypt(struct kts_ifc_data *data)
 	CKNULL(rsa, -ENOMEM);
 
 	CKINT_O_LOG(openssl_rsa_set0_key(rsa, n, e, d),
-		    "Assembly of RSA key failed\n");
+			"Assembly of RSA key failed\n");
 	CKINT_O_LOG(openssl_rsa_set0_factors(rsa, p, q),
-		    "Assembly of RSA factors failed\n");
+			"Assembly of RSA factors failed\n");
 
 	pk = EVP_PKEY_new();
 	CKNULL(pk, -ENOMEM);
@@ -4538,26 +4555,26 @@ static int openssl_rsa_oaep_decrypt(struct kts_ifc_data *data)
 	CKINT_O_LOG(EVP_PKEY_decrypt_init(ctx), "PKEY decrypt init failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING),
-		    "Setting OAEP padding failed\n");
+			"Setting OAEP padding failed\n");
 	CKINT_O_LOG(EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md),
-		    "Setting of OAEP MD failed\n");
+			"Setting of OAEP MD failed\n");
 
 	/* Determine buffer length */
 	CKINT_O_LOG(EVP_PKEY_decrypt(ctx, NULL, &outlen, resp->c.buf,
-				     resp->c.len),
-		    "Getting plaintext length failed %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+					 resp->c.len),
+			"Getting plaintext length failed %s\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 	CKINT(alloc_buf(outlen, &tmp));
 
 	CKINT_O_LOG(EVP_PKEY_decrypt(ctx, tmp.buf, &tmp.len,
-				     resp->c.buf, resp->c.len),
-		    "RSA OAEP decryption failed %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+					 resp->c.buf, resp->c.len),
+			"RSA OAEP decryption failed %s\n",
+			ERR_error_string(ERR_get_error(), NULL));
 
 	if (tmp.len < (data->keylen >> 3)) {
 		logger(LOGGER_ERR,
-		       "RSA OAEP decrypted data has insufficient size\n");
+			   "RSA OAEP decrypted data has insufficient size\n");
 		ret = -EFAULT;
 		goto out;
 	}
@@ -4577,14 +4594,14 @@ out:
 }
 
 static int openssl_kts_ifc_generate(struct kts_ifc_data *data,
-				    flags_t parsed_flags)
+					flags_t parsed_flags)
 {
 	int ret;
 
 	(void)parsed_flags;
 
 	if ((parsed_flags & FLAG_OP_KAS_ROLE_INITIATOR) &&
-	    (parsed_flags & FLAG_OP_AFT)) {
+		(parsed_flags & FLAG_OP_AFT)) {
 		CKINT(openssl_rsa_oaep_encrypt(data));
 	} else if ((parsed_flags & FLAG_OP_KAS_ROLE_RESPONDER) &&
 		   (parsed_flags & FLAG_OP_AFT)) {
@@ -4640,23 +4657,23 @@ static int openssl_hkdf_extract(const EVP_MD *md,
 
 	/* Extract phase */
 	CKINT_O_LOG(EVP_PKEY_derive_init(pctx),
-		    "Initialiation of HKDF failed\n");
+			"Initialiation of HKDF failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_hkdf_mode(pctx,
 					   EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY),
-		    "Setting HKDF Extract operation failed\n");
+			"Setting HKDF Extract operation failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_set_hkdf_md(pctx, md), "Setting MD failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_set1_hkdf_key(pctx, key, keylen),
-		    "Setting HKDF key failed\n");
+			"Setting HKDF key failed\n");
 
 
 	CKINT_O_LOG(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, saltlen),
-		    "Setting salt failed\n");
+			"Setting salt failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_derive(pctx, secret, secretlen),
-		    "Deriving expand key failed\n");
+			"Deriving expand key failed\n");
 
 out:
 	if (pctx)
@@ -4665,9 +4682,9 @@ out:
 }
 
 static int openssl_hkdf_expand(const EVP_MD *md,
-			       const uint8_t *fi, size_t filen,
-			       const uint8_t *secret, size_t secretlen,
-			       uint8_t *dkm, size_t *dkmlen)
+				   const uint8_t *fi, size_t filen,
+				   const uint8_t *secret, size_t secretlen,
+				   uint8_t *dkm, size_t *dkmlen)
 {
 	EVP_PKEY_CTX *pctx = NULL;
 	int ret;
@@ -4676,22 +4693,22 @@ static int openssl_hkdf_expand(const EVP_MD *md,
 	CKNULL(pctx, -EFAULT);
 
 	CKINT_O_LOG(EVP_PKEY_derive_init(pctx),
-		    "Initialiation of HKDF failed\n");
+			"Initialiation of HKDF failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_hkdf_mode(pctx,
 					   EVP_PKEY_HKDEF_MODE_EXPAND_ONLY),
-		    "Setting HKDF Expand operation failed\n");
+			"Setting HKDF Expand operation failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_set_hkdf_md(pctx, md), "Setting MD failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, secretlen),
-		    "Setting HKDF key failed\n");
+			"Setting HKDF key failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_CTX_add1_hkdf_info(pctx, fi, filen),
-		    "Setting fixed info string failed\n");
+			"Setting fixed info string failed\n");
 
 	CKINT_O_LOG(EVP_PKEY_derive(pctx, dkm, dkmlen),
-		    "Deriving key material failed\n");
+			"Deriving key material failed\n");
 
 out:
 	if (pctx)
@@ -4715,9 +4732,9 @@ static inline void be16_to_ptr(uint8_t *p, const uint16_t value)
  * @param out: derived key material
  */
 static int tls13_hkdf_expand(const EVP_MD *md, const uint8_t *secret,
-			     const uint8_t *label, size_t labellen,
-			     const uint8_t *data, size_t datalen,
-			     uint8_t *out, size_t outlen)
+				 const uint8_t *label, size_t labellen,
+				 const uint8_t *data, size_t datalen,
+				 uint8_t *out, size_t outlen)
 {
 	static const unsigned char label_prefix[] = "tls13 ";
 	int ret;
@@ -4768,7 +4785,7 @@ static const unsigned char default_zeros[TLS13_MAX_DIGEST_SIZE];
 
 /*
  * @param prevsecret: Result of previous tls13_generate_secret operations
- * 		      (during first invocation, this is NULL)
+ *			  (during first invocation, this is NULL)
  * @param insecret: Secret (either PSK or DHE shared secret or NULL)
  * @param outsecret: secret of message digest size
  */
@@ -4805,8 +4822,8 @@ static int tls13_generate_secret(const EVP_MD *md,
 
 		/* The pre-extract derive step uses a hash of no messages */
 		if (mctx == NULL
-		    || EVP_DigestInit_ex(mctx, md, NULL) <= 0
-		    || EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
+			|| EVP_DigestInit_ex(mctx, md, NULL) <= 0
+			|| EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
 			logger(LOGGER_ERR, "hash generation failed\n");
 			EVP_MD_CTX_free(mctx);
 			return -EFAULT;
@@ -4815,9 +4832,9 @@ static int tls13_generate_secret(const EVP_MD *md,
 
 		/* Generate the pre-extract secret */
 		if (!tls13_hkdf_expand(md, prevsecret,
-				       (unsigned char *)derived_secret_label,
-				       sizeof(derived_secret_label) - 1,
-				       hash, mdlen, preextractsec, mdlen))
+					   (unsigned char *)derived_secret_label,
+					   sizeof(derived_secret_label) - 1,
+					   hash, mdlen, preextractsec, mdlen))
 			return -EFAULT;
 
 		prevsecret = preextractsec;
@@ -4843,17 +4860,17 @@ static int openssl_hash(const EVP_MD *md,
 	CKNULL_LOG(ctx, -ENOMEM, "MD context not created\n");
 
 	CKINT_O_LOG(EVP_DigestInit(ctx, md), "EVP_DigestInit() failed %s\n",
-		    ERR_error_string(ERR_get_error(), NULL));
+			ERR_error_string(ERR_get_error(), NULL));
 
 	CKINT_O_LOG(EVP_DigestUpdate(ctx, in, inlen),
-		    "EVP_DigestUpdate() failed\n");
+			"EVP_DigestUpdate() failed\n");
 
 	if (in2 && in2len)
 		CKINT_O_LOG(EVP_DigestUpdate(ctx, in2, in2len),
-			    "EVP_DigestUpdate() failed\n");
+				"EVP_DigestUpdate() failed\n");
 
 	CKINT_O_LOG(EVP_DigestFinal(ctx, out, outlen),
-		    "EVP_DigestFinal() failed\n");
+			"EVP_DigestFinal() failed\n");
 
 out:
 	return ret;
@@ -4905,19 +4922,19 @@ static int openssl_tls13_generate(struct tls13_data *data,
 			   data->client_hello_random.len, NULL, 0,
 			   mdbuf, &mdbuflen));
 	CKINT_O_LOG(tls13_hkdf_expand(md, secret,
-				      client_early_traffic,
-				      sizeof(client_early_traffic) - 1,
-				      mdbuf, mdbuflen,
-				      data->client_early_traffic_secret.buf,
-				      data->client_early_traffic_secret.len),
+					  client_early_traffic,
+					  sizeof(client_early_traffic) - 1,
+					  mdbuf, mdbuflen,
+					  data->client_early_traffic_secret.buf,
+					  data->client_early_traffic_secret.len),
 		   "Generation of client early traffic secret failed\n");
 
 	CKINT_O_LOG(tls13_hkdf_expand(md, secret,
-				      early_exporter_master_secret,
-				      sizeof(early_exporter_master_secret) - 1,
-				      mdbuf, mdbuflen,
-				      data->early_exporter_master_secret.buf,
-				      data->early_exporter_master_secret.len),
+					  early_exporter_master_secret,
+					  sizeof(early_exporter_master_secret) - 1,
+					  mdbuf, mdbuflen,
+					  data->early_exporter_master_secret.buf,
+					  data->early_exporter_master_secret.len),
 		   "Generation of early exporter master secret failed\n");
 
 
@@ -4935,19 +4952,19 @@ static int openssl_tls13_generate(struct tls13_data *data,
 			   mdbuf, &mdbuflen));
 
 	CKINT_O_LOG(tls13_hkdf_expand(md, secret,
-				      client_handshake_traffic,
-				      sizeof(client_handshake_traffic) - 1,
-				      mdbuf, mdbuflen,
-				      data->client_handshake_traffic_secret.buf,
-				      data->client_handshake_traffic_secret.len),
+					  client_handshake_traffic,
+					  sizeof(client_handshake_traffic) - 1,
+					  mdbuf, mdbuflen,
+					  data->client_handshake_traffic_secret.buf,
+					  data->client_handshake_traffic_secret.len),
 		   "Generation of client handshake traffic secret failed\n");
 
 	CKINT_O_LOG(tls13_hkdf_expand(md, secret,
-				      server_handshake_traffic,
-				      sizeof(server_handshake_traffic) - 1,
-				      mdbuf, mdbuflen,
-				      data->server_handshake_traffic_secret.buf,
-				      data->server_handshake_traffic_secret.len),
+					  server_handshake_traffic,
+					  sizeof(server_handshake_traffic) - 1,
+					  mdbuf, mdbuflen,
+					  data->server_handshake_traffic_secret.buf,
+					  data->server_handshake_traffic_secret.len),
 		   "Generation of server handshake traffic secret failed\n");
 
 	/* Generate Master Secret  */
@@ -4962,27 +4979,27 @@ static int openssl_tls13_generate(struct tls13_data *data,
 			   mdbuf, &mdbuflen));
 
 	CKINT_O_LOG(tls13_hkdf_expand(md, secret,
-				      client_application_traffic,
-				      sizeof(client_application_traffic) - 1,
-				      mdbuf, mdbuflen,
-				      data->client_application_traffic_secret.buf,
-				      data->client_application_traffic_secret.len),
+					  client_application_traffic,
+					  sizeof(client_application_traffic) - 1,
+					  mdbuf, mdbuflen,
+					  data->client_application_traffic_secret.buf,
+					  data->client_application_traffic_secret.len),
 		   "Generation of client application traffic secret failed\n");
 
 	CKINT_O_LOG(tls13_hkdf_expand(md, secret,
-				      server_application_traffic,
-				      sizeof(server_application_traffic) - 1,
-				      mdbuf, mdbuflen,
-				      data->server_application_traffic_secret.buf,
-				      data->server_application_traffic_secret.len),
+					  server_application_traffic,
+					  sizeof(server_application_traffic) - 1,
+					  mdbuf, mdbuflen,
+					  data->server_application_traffic_secret.buf,
+					  data->server_application_traffic_secret.len),
 		   "Generation of server application traffic secret failed\n");
 
 	CKINT_O_LOG(tls13_hkdf_expand(md, secret,
-				      exporter_master_secret,
-				      sizeof(exporter_master_secret) - 1,
-				      mdbuf, mdbuflen,
-				      data->exporter_master_secret.buf,
-				      data->exporter_master_secret.len),
+					  exporter_master_secret,
+					  sizeof(exporter_master_secret) - 1,
+					  mdbuf, mdbuflen,
+					  data->exporter_master_secret.buf,
+					  data->exporter_master_secret.len),
 		   "Generation of exporter master secret failed\n");
 
 	CKINT(openssl_hash(md, data->client_hello_random.buf,
@@ -4992,11 +5009,11 @@ static int openssl_tls13_generate(struct tls13_data *data,
 			   mdbuf, &mdbuflen));
 
 	CKINT_O_LOG(tls13_hkdf_expand(md, secret,
-				      resumption_master_secret,
-				      sizeof(resumption_master_secret) - 1,
-				      mdbuf, mdbuflen,
-				      data->resumption_master_secret.buf,
-				      data->resumption_master_secret.len),
+					  resumption_master_secret,
+					  sizeof(resumption_master_secret) - 1,
+					  mdbuf, mdbuflen,
+					  data->resumption_master_secret.buf,
+					  data->resumption_master_secret.len),
 		   "Generation of resumption master secret failed\n");
 
 out:
@@ -5053,7 +5070,7 @@ static int openssl_hkdf_generate(struct hkdf_data *data,
 					  local_dkm.buf, &local_dkm.len));
 
 		if (local_dkm.len != data->dkm.len ||
-		    memcmp(local_dkm.buf, data->dkm.buf, local_dkm.len)) {
+			memcmp(local_dkm.buf, data->dkm.buf, local_dkm.len)) {
 			logger(LOGGER_DEBUG, "HKDF validation result: fail\n");
 			data->validity_success = 0;
 		} else {
