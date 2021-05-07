@@ -23,7 +23,7 @@ _LIB_EXPECTED="testvector-expected.json"
 failures=0
 local_failures=0
 
-EBITS=${EBITS:-"64 32"}
+EBITS=${EBITS:-"64"}
 ABITS=()
 for B in ${EBITS}; do
     ABITS+=("_${B}_bit___ ")
@@ -192,7 +192,7 @@ exec_module()
 		then
 			lib_iut_dir=${_LIB_IUT_PROD}
 		else
-			echo "Test vector base directory ${_LUB_IUT} / ${_LIB_IUT_PROD} not found"
+			echo "Test vector base directory ${_LIB_IUT} / ${_LIB_IUT_PROD} not found"
 			return
 		fi
 	fi
