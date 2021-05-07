@@ -300,19 +300,21 @@ out:
 	return ret;
 }
 
-#define CB_HANDLER(name)						       \
-	case CB_TYPE_##name :						       \
-	{								       \
-		const struct name ## _callback *cb = &callback->callback.name ;\
-		if (cb && cb->helper) {					       \
-			CKINT(cb->helper(processdata, parsed_flags, testvector,\
-					 testresults, cb->fn, cb->vector));    \
-		} else if (cb && cb->fn) {				       \
-			CKINT(cb->fn(cb->vector, parsed_flags));	       \
-		} else {						       \
-			logger(LOGGER_VERBOSE, "No callback defined\n");       \
-		}							       \
-		break;							       \
+#define CB_HANDLER(name)						           \
+	case CB_TYPE_##name :						           \
+	{								           \
+		const struct name ## _callback *cb = &callback->callback.name ;    \
+		if (cb && cb->helper) {					           \
+			logger(LOGGER_VERBOSE, "Hp callback defined: %s\n", #name);\
+			CKINT(cb->helper(processdata, parsed_flags, testvector,    \
+					 testresults, cb->fn, cb->vector));        \
+		} else if (cb && cb->fn) {				           \
+			logger(LOGGER_VERBOSE, "Fn callback defined: %s\n", #name);\
+			CKINT(cb->fn(cb->vector, parsed_flags));	           \
+		} else {						           \
+			logger(LOGGER_VERBOSE, "No callback defined: %s\n", #name);\
+		}							           \
+		break;							           \
 	}
 
 /**
