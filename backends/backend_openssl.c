@@ -71,13 +71,9 @@ static void openssl_backend_init(void)
  ************************************************/
 
 /*
- * Enable this option to compile the code for the OpenSSL 1.1.x
- * FIPS code base using the upstream CTR DRBG.
- *
- * The default code base works with Fedora 29 / RHEL 8 code base with
- * the add-on CTR / HMAC / Hash DRBG.
+ * Only ever use upstream DRBG. fips_rand.h does not exist in Ubuntu 18.04
  */
-#ifndef OPENSSL_DRBG_10X
+#ifndef OPENSSL_11X_UPSTREAM_DRBG
 # define OPENSSL_11X_UPSTREAM_DRBG
 #endif
 
