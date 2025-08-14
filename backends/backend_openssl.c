@@ -1664,7 +1664,7 @@ static int openssl_gcm_encrypt(struct aead_data *data, flags_t parsed_flags)
 			    "EVP_CIPHER_CTX_ctrl() failed to set the IV length %u\n",
 			    data->iv.len);
 	} else {
-		if (ivlen < 4) {
+		if (ivlen < 12) {
 			logger(LOGGER_WARN, "IV size too small\n");
 			ret = -EINVAL;
 			goto out;

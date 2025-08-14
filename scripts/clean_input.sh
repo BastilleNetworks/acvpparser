@@ -30,12 +30,16 @@ for GIVEN in "${BUNDLE_DIR}"/given/*; do
 done
 
 for GIVEN_FILE in "${BUNDLE_DIR}"/given/**/*.json; do
-  jq '[ {"acvVersion": "1.0"}, .]' "${GIVEN_FILE}" > /tmp/testvector-request.json
-  mv /tmp/testvector-request.json "${GIVEN_FILE}"
+  TARGET_FILE=$(echo "${GIVEN_FILE}" | sed -e s/_/-/g)
+  jq -S '[ {"acvVersion": "1.0"}, .]' "${GIVEN_FILE}" > /tmp/testvector-request.json
+  mv /tmp/testvector-request.json "${TARGET_FILE}"
+  if [[ "${GIVEN_FILE}" != "${TARGET_FILE}" ]]; then
+    rm "${GIVEN_FILE}"
+  fi
 done
 
 for EXPECTED_FILE in "${BUNDLE_DIR}"/expected/**/*.json; do
-  jq '[ {"acvVersion": "1.0"}, .]' "${EXPECTED_FILE}" > /tmp/testvector-response.json
+  jq -S '[ {"acvVersion": "1.0"}, .]' "${EXPECTED_FILE}" > /tmp/testvector-response.json
   mv /tmp/testvector-response.json "${EXPECTED_FILE}"
 done
 
