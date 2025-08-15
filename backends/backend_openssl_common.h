@@ -161,7 +161,7 @@ extern "C"
  * KDF.
  */
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
-# define OPENSSL_SSH_KDF
+# undef OPENSSL_SSH_KDF
 #else
 # undef OPENSSL_SSH_KDF
 #endif
@@ -170,8 +170,8 @@ extern "C"
  * Enable this option if your OpenSSL code base implements the
  * SP800-108 KBKDF.
  */
-#ifndef OPENSSL_KBKDF
-# define OPENSSL_KBKDF
+#ifdef OPENSSL_KBKDF
+# undef OPENSSL_KBKDF
 #endif
 
 /*

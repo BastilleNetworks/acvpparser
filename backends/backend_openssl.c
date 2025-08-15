@@ -621,24 +621,24 @@ static int tls1_PRF(uint64_t cipher,
 		|| EVP_PKEY_CTX_set_dh_pad(pctx, 1) <= 0
 		|| EVP_PKEY_CTX_set_tls1_prf_md(pctx, md) <= 0
 		|| EVP_PKEY_CTX_set1_tls1_prf_secret(pctx, sec, slen) <= 0)
-		goto err;
+		goto out;
 
 	if (EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, seed1, seed1_len) <= 0)
-		goto err;
+		goto out;
 	if (EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, seed2, seed2_len) <= 0)
-		goto err;
+		goto out;
 	if (EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, seed3, seed3_len) <= 0)
-		goto err;
+		goto out;
 	if (EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, seed4, seed4_len) <= 0)
-		goto err;
+		goto out;
 	if (EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, seed5, seed5_len) <= 0)
-		goto err;
+		goto out;
 
 	if (EVP_PKEY_derive(pctx, out, &outlen) <= 0)
-		goto err;
+		goto out;
 	ret = 0;
 
-err:
+out:
 	EVP_PKEY_CTX_free(pctx);
 	return ret;
 }
@@ -1493,6 +1493,8 @@ static void openssl_kdf_ssh_backend(void)
 /************************************************
  * TLS cipher interface functions
  ************************************************/
+
+#include <openssl/ssl.h>
 
 static int openssl_kdf_tls_op(struct kdf_tls_data *data, flags_t parsed_flags)
 {
