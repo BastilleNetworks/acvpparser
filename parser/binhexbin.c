@@ -158,7 +158,7 @@ int bin2hex_alloc(const uint8_t *bin, size_t binlen,
 	if (!out)
 		return -errno;
 
-	bin2hex(bin, binlen, out, outlen, 0);
+	bin2hex(bin, binlen, out, outlen, 1);
 	*hex = out;
 	*hexlen = outlen;
 	return 0;
