@@ -1026,6 +1026,8 @@ static int openssl_hmac_generate(struct hmac_data *data)
 	unsigned int taglen;
 	int mdlen;
 	int ret = 0;
+	size_t length;
+	uint32_t maclen_bytes;
 
 	CKINT(openssl_md_convert(data->cipher, &md));
 
@@ -1035,8 +1037,13 @@ static int openssl_hmac_generate(struct hmac_data *data)
 		  "SHA buffer cannot be allocated\n");
 
 	taglen = (unsigned int)data->mac.len;
+	maclen_bytes = (data->maclen) / 8;
+	length = (size_t)(maclen_bytes < taglen?maclen_bytes:taglen);
 
 	logger(LOGGER_DEBUG, "taglen = %zu\n", data->mac.len);
+	logger(LOGGER_DEBUG, "data->maclen = %u\n", data->maclen);
+	logger(LOGGER_DEBUG, "maclen_bytes = %u\n", maclen_bytes);
+	logger(LOGGER_DEBUG, "length = %zu\n", length);
 	logger_binary(LOGGER_DEBUG, data->key.buf, data->key.len, "key");
 	logger_binary(LOGGER_DEBUG, data->msg.buf, data->msg.len, "msg");
 
@@ -1049,7 +1056,8 @@ static int openssl_hmac_generate(struct hmac_data *data)
 		goto out;
 	}
 
-	memcpy(data->mac.buf, hmac, data->mac.len);
+	memcpy(data->mac.buf, hmac, length);
+	data->mac.len = length;
 	logger_binary(LOGGER_DEBUG, data->mac.buf, data->mac.len, "hmac");
 
 out:
@@ -1374,112 +1382,9 @@ static void openssl_kdf_tls_backend(void)
 # define	EVP_KDF_CTX_FREE(a)	EVP_KDF_CTX_free(a)
 #endif
 
-static int openssl_kdf_ssh_internal(struct kdf_ssh_data *data,
-				    int id, const EVP_MD *md,
-				    struct buffer *out)
-{
-	EVP_KDF_CTX *ctx = NULL;
-	int ret = 0;
-
-	ctx = EVP_KDF_CTX_NEW_ID();
-	CKNULL_LOG(ctx, -EFAULT, "Cannot allocate SSHv2 PRF\n");
-
-	CKINT_O(EVP_KDF_DERIVE_INIT(ctx));
-	CKINT_O(EVP_KDF_SET_MD(ctx, md));
-	CKINT_O(EVP_KDF_SET_KEY(ctx, data->k.buf, data->k.len));
-	CKINT_O(EVP_KDF_SET_XCGHASH(ctx, data->h.buf, data->h.len));
-	CKINT_O(EVP_KDF_SET_SSHKDF_TYPE(ctx, id));
-	CKINT_O(EVP_KDF_SET_SESSIONID(ctx, data->session_id.buf,
-				      data->session_id.len));
-	CKINT_O(EVP_KDF_DERIVE(ctx, out->buf, out->len));
-
-out:
-	EVP_KDF_CTX_FREE(ctx);
-	return ret;
-}
-
-static int openssl_kdf_ssh(struct kdf_ssh_data *data, flags_t parsed_flags)
-{
-	const EVP_MD *md;
-	unsigned int ivlen, enclen, maclen;
-	int ret;
-
-	(void)parsed_flags;
-
-	CKINT(openssl_md_convert(data->cipher, &md));
-
-	switch (data->cipher & ACVP_SYMMASK) {
-	case ACVP_AES128:
-		enclen = 16;
-		ivlen = 16;
-		break;
-	case ACVP_AES192:
-		enclen = 24;
-		ivlen = 16;
-		break;
-	case ACVP_AES256:
-		enclen = 32;
-		ivlen = 16;
-		break;
-	case ACVP_TDESECB:
-		enclen = 24;
-		ivlen = 8;
-		break;
-	default:
-		logger(LOGGER_WARN, "Cipher not identified\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	switch (data->cipher & ACVP_HASHMASK) {
-	case ACVP_SHA1:
-		maclen = 20;
-		break;
-	case ACVP_SHA224:
-		maclen = 28;
-		break;
-	case ACVP_SHA256:
-		maclen = 32;
-		break;
-	case ACVP_SHA384:
-		maclen = 48;
-		break;
-	case ACVP_SHA512:
-		maclen = 64;
-		break;
-	default:
-		logger(LOGGER_WARN, "Mac not identified\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	CKINT(alloc_buf(ivlen, &data->initial_iv_client));
-	CKINT(alloc_buf(ivlen, &data->initial_iv_server));
-	CKINT(alloc_buf(enclen, &data->encryption_key_client));
-	CKINT(alloc_buf(enclen, &data->encryption_key_server));
-	CKINT(alloc_buf(maclen, &data->integrity_key_client));
-	CKINT(alloc_buf(maclen, &data->integrity_key_server));
-
-	CKINT(openssl_kdf_ssh_internal(data,  'A' + 0, md,
-				       &data->initial_iv_client));
-	CKINT(openssl_kdf_ssh_internal(data,  'A' + 1, md,
-				       &data->initial_iv_server));
-	CKINT(openssl_kdf_ssh_internal(data,  'A' + 2, md,
-				       &data->encryption_key_client));
-	CKINT(openssl_kdf_ssh_internal(data,  'A' + 3, md,
-				       &data->encryption_key_server));
-	CKINT(openssl_kdf_ssh_internal(data,  'A' + 4, md,
-				       &data->integrity_key_client));
-	CKINT(openssl_kdf_ssh_internal(data,  'A' + 5, md,
-				       &data->integrity_key_server));
-
-out:
-	return ret;
-}
-
 static struct kdf_ssh_backend openssl_kdf =
 {
-	openssl_kdf_ssh,
+	NULL,
 };
 
 ACVP_DEFINE_CONSTRUCTOR(openssl_kdf_ssh_backend)
@@ -1558,151 +1463,8 @@ static void openssl_kdf_tls_backend(void)
  * SP 800-108 KBKDF interface functions
  ************************************************/
 
-static int openssl_kdf108(struct kdf_108_data *data, flags_t parsed_flags)
-{
-	EVP_KDF_CTX *ctx = NULL;
-	const EVP_MD *md = NULL;
-	const EVP_CIPHER *type = NULL;
-	uint32_t derived_key_bytes = data->derived_key_length / 8;
-	uint32_t l = be32(data->derived_key_length);
-	BUFFER_INIT(label);
-	BUFFER_INIT(context);
-	int ret = 0, alloced = 0;
-	(void)parsed_flags;
-
-	logger(LOGGER_VERBOSE, "data->kdfmode = %" PRIu64 "\n", data->kdfmode);
-	if (!(data->kdfmode & ACVP_CIPHERTYPE_KDF)) {
-		logger(LOGGER_ERR, "The cipher type isn't a KDF");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	if (data->kdfmode == ACVP_KDF_108_DOUBLE_PIPELINE) {
-		logger(LOGGER_ERR, "Double pipeline mode is not supported");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	ctx = EVP_KDF_CTX_new_id(EVP_KDF_KB);
-	CKNULL(ctx, -ENOMEM);
-
-	/* We only check COUNTER or FEEDBACK because DOUBLE PIPELINE is not
-	 * supported and is checked above
-	 */
-	CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_MODE,
-				(data->kdfmode == ACVP_KDF_108_COUNTER) ?
-				 EVP_KDF_KB_MODE_COUNTER :
-				 EVP_KDF_KB_MODE_FEEDBACK),
-		    "EVP_KDF_ctrl failed to set KB_MODE");
-
-	logger(LOGGER_VERBOSE, "data->mac = %" PRIu64 "\n", data->mac);
-	if (data->mac & ACVP_CIPHERTYPE_HMAC) {
-		CKINT(openssl_md_convert(data->mac, &md));
-		CKNULL(md, -ENOMEM);
-
-		CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_MD, md),
-			    "EVP_KDF_ctrl failed to set the MD\n");
-		CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_MAC_TYPE,
-					 EVP_KDF_KB_MAC_TYPE_HMAC),
-			    "EVP_KDF_ctrl failed to set the MAC_TYPE\n");
-	} else if (data->mac & ACVP_CIPHERTYPE_CMAC) {
-		CKINT(openssl_cipher(data->mac == ACVP_AESCMAC ? ACVP_AESCMAC :
-				     ACVP_TDESCMAC, data->key.len, &type));
-		CKNULL(type, -ENOMEM);
-
-		CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_CIPHER, type),
-			    "EVP_KDF_ctrl failed to set the CIPHER\n");
-		CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_MAC_TYPE,
-					 EVP_KDF_KB_MAC_TYPE_CMAC),
-                            "EVP_KDF_ctrl failed to set the MAC_TYPE\n");
-	}
-
-	logger_binary(LOGGER_VERBOSE, data->key.buf, data->key.len, "data->key");
-	CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KEY,
-				 data->key.buf, data->key.len),
-		    "EVP_KDF_ctrl failed to set the KEY");
-
-	logger(LOGGER_VERBOSE, "L = %u\n", derived_key_bytes);
-	logger_binary(LOGGER_VERBOSE, (unsigned char *)&l, sizeof(l), "[L]_2");
-
-	if (data->fixed_data.len) {
-		if (data->fixed_data.len != (data->key.len * 2 + 1 + sizeof(l))) {
-			logger(LOGGER_ERR, "KBKDF fixed data unexpected length for regression testing\n");
-			ret = -EINVAL;
-			goto out;
-		}
-		label.buf = data->fixed_data.buf;
-		label.len = data->key.len;
-		context.buf = data->fixed_data.buf + 1 + label.len;
-		context.len = data->key.len;
-	} else {
-		alloced = 1;
-		CKINT(alloc_buf(data->key.len, &label));
-		CKINT(alloc_buf(data->key.len, &context));
-
-		/*
-		 * Allocate the fixed_data to hold
-		 * Label || 0x00 || Context || [L]_2
-		 */
-		CKINT(alloc_buf(label.len + 1 + context.len + sizeof(l),
-				&data->fixed_data));
-
-		/* Randomly choose the label and context */
-		RAND_bytes(label.buf, (int)label.len);
-		RAND_bytes(context.buf, (int)context.len);
-
-		/*
-		 * Fixed data = Label || 0x00 || Context || [L]_2
-		 * The counter i is not part of it
-		 */
-		memcpy(data->fixed_data.buf, label.buf, label.len);
-		       data->fixed_data.buf[label.len] = 0x00;
-		memcpy(data->fixed_data.buf + label.len + 1, context.buf,
-		       context.len);
-		memcpy(data->fixed_data.buf + label.len + 1 + context.len,
-		       (unsigned char *)&l, sizeof(l));
-
-		logger_binary(LOGGER_VERBOSE, data->fixed_data.buf,
-			      data->fixed_data.len, "data->fixed_data");
-	}
-
-	logger_binary(LOGGER_VERBOSE, label.buf, label.len, "label");
-	CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_SALT, label.buf,
-				label.len),
-		    "EVP_KDF_ctrl failed to set the SALT (label)");
-
-	logger_binary(LOGGER_VERBOSE, context.buf, context.len, "context");
-	CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_INFO, context.buf,
-				context.len),
-		    "EVP_KDF_ctrl fail to set KB_INFO (context)");
-
-	if (data->iv.len) {
-		logger_binary(LOGGER_VERBOSE, data->iv.buf, data->iv.len,
-			      "data->iv");
-		CKINT_O_LOG(EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_SEED,
-					 data->iv.buf, data->iv.len),
-			    "EVP_KDF_ctrl failed to set the KB_SEED (iv)");
-	}
-
-	CKINT(alloc_buf(derived_key_bytes, &data->derived_key));
-	CKINT_O_LOG(EVP_KDF_DERIVE(ctx, data->derived_key.buf,
-				   derived_key_bytes),
-		    "EVP_KDF_DERIVE failed\n");
-	logger_binary(LOGGER_VERBOSE, data->derived_key.buf,
-                      derived_key_bytes, "data->derived_key");
-
-out:
-	EVP_KDF_CTX_free(ctx);
-	if (alloced) {
-		free_buf(&label);
-		free_buf(&context);
-	}
-	return ret;
-}
-
 static struct kdf_108_backend openssl_kdf108_backend =
 {
-	openssl_kdf108,
 	NULL,
 };
 
