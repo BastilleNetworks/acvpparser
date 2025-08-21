@@ -300,7 +300,7 @@ static int openssl_mac_generate_helper(struct hmac_data *data, char *mac_algo,
 			"EVP_MAC_update failed\n");
 	CKINT_LOG(alloc_buf((size_t)EVP_MAC_CTX_get_mac_size(ctx), &data->mac),
 			"%s buffer cannot be allocated\n", mac_algo);
-	CKINT_O_LOG(EVP_MAC_final(ctx, data->mac.buf, &data->mac.len, data->maclen / 8),
+	CKINT_O_LOG(EVP_MAC_final(ctx, data->mac.buf, &data->mac.len, data->mac.len),
 			"EVP_MAC_final failed\n");
 
 	logger(LOGGER_DEBUG, "taglen = %zu\n", data->mac.len);
@@ -2954,6 +2954,90 @@ out:
 	return ret;
 }
 
+static int openssl_rsa_keygen_prime(struct rsa_keygen_prime_data *data, flags_t parsed_flags)
+{
+	BIGNUM *e = NULL, *p = NULL, *q = NULL;
+	EVP_PKEY_CTX *ctx = NULL;
+	EVP_PKEY *rsa = NULL;
+	OSSL_PARAM_BLD *bld = NULL;
+	OSSL_PARAM *params = NULL;
+	int ret = 0;
+
+	(void)parsed_flags;
+
+	if (!data->e.len) {
+		logger(LOGGER_WARN, "RSA E missing\n");
+		return -EINVAL;
+	}
+
+	logger_binary(LOGGER_DEBUG, data->e.buf, data->e.len, "e");
+	logger_binary(LOGGER_DEBUG, data->p.buf, data->p.len, "p");
+	logger_binary(LOGGER_DEBUG, data->q.buf, data->q.len, "q");
+
+	e = BN_bin2bn((const unsigned char *) data->e.buf, (int)data->e.len, e);
+	CKNULL(e, -ENOMEM);
+
+	p = BN_bin2bn((const unsigned char *) data->p.buf, (int)data->p.len, p);
+	CKNULL(p, -ENOMEM);
+	if (BN_is_zero(p))
+		BN_one(p);
+
+	q = BN_bin2bn((const unsigned char *)data->q.buf, (int)data->q.len, q);
+	CKNULL(q, -ENOMEM);
+	if (BN_is_zero(q))
+		BN_one(q);
+
+	bld = OSSL_PARAM_BLD_new();
+	CKNULL(bld, -ENOMEM);
+
+	CKINT_O(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_E, e));
+	CKINT_O(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_FACTOR1, p));
+	CKINT_O(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_FACTOR2, q));
+	CKINT_O(OSSL_PARAM_BLD_push_uint(bld, OSSL_PKEY_PARAM_RSA_BITS, data->modulus));
+
+	params = OSSL_PARAM_BLD_to_param(bld);
+	CKNULL(params, -ENOMEM)
+
+	ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+	CKNULL(ctx, -EFAULT);
+
+	CKINT_O_LOG(EVP_PKEY_keygen_init(ctx), "EVP_PKEY_keygen_init failed\n");
+	CKINT_O_LOG(EVP_PKEY_CTX_set_params(ctx, params), "EVP_PKEY_CTX_set_params failed\n");
+
+	ret = EVP_PKEY_generate(ctx, &rsa);
+	if (ret == 1) {
+		logger(LOGGER_DEBUG, "EVP_PKEY_generate passed for RSA\n");
+		data->keygen_success = 1;
+		ret = 0;
+	} else if (ret == 0) {
+		logger(LOGGER_DEBUG, "EVP_PKEY_generate failed for RSA\n");
+		data->keygen_success = 0;
+		ret = 0;
+	} else {
+		logger(LOGGER_DEBUG,
+			   "EVP_PKEY_generate general error for RSA\n");
+		ret = -EFAULT;
+	}
+
+out:
+	if (e)
+		BN_free(e);
+	if (p)
+		BN_free(p);
+	if (q)
+		BN_free(q);
+	if (rsa)
+		EVP_PKEY_free(rsa);
+	if (ctx)
+		EVP_PKEY_CTX_free(ctx);
+	if (bld)
+		OSSL_PARAM_BLD_free(bld);
+	if (params)
+		OSSL_PARAM_free(params);
+
+	return ret;
+}
+
 static int openssl_rsa_siggen(struct rsa_siggen_data *data,
 			      flags_t parsed_flags)
 {
@@ -3032,7 +3116,7 @@ static struct rsa_backend openssl_rsa =
 	openssl_rsa_keygen,
 	openssl_rsa_siggen,
 	openssl_rsa_sigver,
-	NULL,
+	openssl_rsa_keygen_prime,
 	NULL,
 	openssl_rsa_keygen_en,
 	openssl_rsa_free_key,
