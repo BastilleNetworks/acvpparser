@@ -8,6 +8,7 @@ BUNDLE_DIR=$(realpath "${1}")
 
 make clean
 make -s openssl
+rm "${BUNDLE_DIR}"/raw/**/*
 
 for GIVEN_FILE in "${BUNDLE_DIR}"/given/**/*.json; do
   RAW_FILE=$(echo "${GIVEN_FILE}" | sed -e s/given/raw/)

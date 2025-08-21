@@ -302,6 +302,8 @@ static int openssl_mac_generate_helper(struct hmac_data *data, char *mac_algo,
 			"%s buffer cannot be allocated\n", mac_algo);
 	CKINT_O_LOG(EVP_MAC_final(ctx, data->mac.buf, &data->mac.len, data->mac.len),
 			"EVP_MAC_final failed\n");
+	uint32_t maclen_bytes = data->maclen / 8;
+	data->mac.len = maclen_bytes < data->mac.len?maclen_bytes:data->mac.len;
 
 	logger(LOGGER_DEBUG, "taglen = %zu\n", data->mac.len);
 	logger_binary(LOGGER_DEBUG, data->mac.buf, data->mac.len, mac_algo);
