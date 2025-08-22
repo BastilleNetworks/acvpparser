@@ -4087,3 +4087,107 @@ static void openssl_kda_twostep_backend(void)
 {
 	register_kda_twostep_impl(&openssl_kda_twostep);
 }
+
+static int tls1_prf(
+	const EVP_MD* md,
+	unsigned char *secret, size_t secret_len,
+	void *seed1, size_t seed1_len,
+	void *seed2, size_t seed2_len,
+	void *seed3, size_t seed3_len,
+	void *seed4, size_t seed4_len,
+	void *seed5, size_t seed5_len,
+	unsigned char *out, size_t out_len
+)
+{
+	EVP_KDF *kdf = NULL;
+	EVP_KDF_CTX *kctx = NULL;
+	OSSL_PARAM params[8], *p = params;
+	const char *mdname = NULL;
+	int ret = 0;
+
+	CKNULL_LOG(md, -EFAULT, "Digest is null\n");
+	kdf = EVP_KDF_fetch(NULL, OSSL_KDF_NAME_TLS1_PRF, NULL);
+	CKNULL_LOG(kdf, -EFAULT, "Failed to fetch KDF\n");
+	kctx = EVP_KDF_CTX_new(kdf);
+	EVP_KDF_free(kdf);
+	CKNULL_LOG(kctx, -EFAULT, "Failed to new EVP_KDF_CTX\n");
+	mdname = EVP_MD_get0_name(md);
+	*p++ = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, (char*)mdname, 0);
+	*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SECRET, secret, secret_len);
+	*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SEED, seed1, seed1_len);
+	*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SEED, seed2, seed2_len);
+	*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SEED, seed3, seed3_len);
+	*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SEED, seed4, seed4_len);
+	*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SEED, seed5, seed5_len);
+	*p = OSSL_PARAM_construct_end();
+	CKINT_O_snoop(EVP_KDF_derive(kctx, out, out_len, params));
+	ret = 1;
+out:
+	if (kctx)
+		EVP_KDF_CTX_free(kctx);
+	return ret;
+}
+
+static int openssl_kdf_tls_op(struct kdf_tls_data *data, flags_t parsed_flags)
+{
+	EVP_PKEY_CTX *pctx = NULL;
+	const EVP_MD *md;
+	int ret;
+
+	(void)parsed_flags;
+
+	CKINT(alloc_buf(data->pre_master_secret.len, &data->master_secret));
+	CKINT(openssl_md_convert(data->hashalg, &md));
+
+	/* Special case */
+	if ((data->hashalg & ACVP_HASHMASK) == ACVP_SHA1)
+		md = EVP_get_digestbynid(NID_md5_sha1);
+
+	CKINT_O_snoop(tls1_prf(md,
+		data->pre_master_secret.buf, data->pre_master_secret.len,
+		"master secret", TLS_MD_MASTER_SECRET_CONST_SIZE,
+		// TLS_MD_MASTER_SECRET_CONST, TLS_MD_MASTER_SECRET_CONST_SIZE,
+		data->client_hello_random.buf, data->client_hello_random.len,
+		NULL, 0,
+		data->server_hello_random.buf, data->server_hello_random.len,
+		NULL, 0,
+		data->master_secret.buf, data->master_secret.len));
+	logger_binary(LOGGER_DEBUG, data->master_secret.buf, data->master_secret.len, "master_secret");
+
+	EVP_PKEY_CTX_free(pctx);
+	pctx = NULL;
+
+	CKINT(alloc_buf(data->key_block_length / 8, &data->key_block));
+
+	pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_TLS1_PRF, NULL);
+	CKNULL_LOG(pctx, -EFAULT, "Cannot allocate TLS1 PRF\n");
+
+	CKINT_O_snoop(EVP_PKEY_derive_init(pctx));
+	CKINT_O_snoop(EVP_PKEY_CTX_set_tls1_prf_md(pctx, md));
+	CKINT_O_snoop(EVP_PKEY_CTX_set1_tls1_prf_secret(pctx, data->master_secret.buf, data->master_secret.len));
+	CKINT_O_snoop(EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, (unsigned char*)TLS_MD_KEY_EXPANSION_CONST, TLS_MD_KEY_EXPANSION_CONST_SIZE));
+	CKINT_O_snoop(EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, data->server_random.buf, data->server_random.len));
+	CKINT_O_snoop(EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, data->client_random.buf, data->client_random.len));
+	CKINT_O_snoop(EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, NULL, 0));
+	CKINT_O_snoop(EVP_PKEY_CTX_add1_tls1_prf_seed(pctx, NULL, 0));
+	CKINT_O_snoop(EVP_PKEY_derive(pctx, data->key_block.buf, &data->key_block.len));
+
+	logger_binary(LOGGER_DEBUG, data->key_block.buf, data->key_block.len, "keyblock");
+
+	ret = 0;
+
+out:
+	EVP_PKEY_CTX_free(pctx);
+	return (ret);
+}
+
+static struct kdf_tls_backend openssl_kdf_tls =
+{
+	openssl_kdf_tls_op,
+};
+
+ACVP_DEFINE_CONSTRUCTOR(openssl_kdf_tls_backend)
+static void openssl_kdf_tls_backend(void)
+{
+	register_kdf_tls_impl(&openssl_kdf_tls);
+}
