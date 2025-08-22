@@ -80,6 +80,16 @@ extern "C"
 	}								\
 }
 
+#define CKINT_O_snoop(x) {							\
+	ret = x;							\
+	if (ret != 1) {							\
+		ret = -EFAULT;						\
+		logger(LOGGER_ERR, #x "\n") \
+		goto out;						\
+	}								\
+}
+
+
 #define CKINT_O0(x) {							\
 	ret = x;							\
 	if (ret == 0) {							\
