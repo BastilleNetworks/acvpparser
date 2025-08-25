@@ -2976,16 +2976,19 @@ static int openssl_rsa_keygen_prime(struct rsa_keygen_prime_data *data, flags_t 
 	logger_binary(LOGGER_DEBUG, data->p.buf, data->p.len, "p");
 	logger_binary(LOGGER_DEBUG, data->q.buf, data->q.len, "q");
 
-	e = BN_bin2bn((const unsigned char *) data->e.buf, (int)data->e.len, e);
-	CKNULL(e, -ENOMEM);
+	ASSIGN_CKNULL(e,
+		BN_bin2bn((const unsigned char *) data->e.buf, (int)data->e.len, e),
+		-ENOMEM);
 
-	p = BN_bin2bn((const unsigned char *) data->p.buf, (int)data->p.len, p);
-	CKNULL(p, -ENOMEM);
+	ASSIGN_CKNULL(p,
+		BN_bin2bn((const unsigned char *) data->p.buf, (int)data->p.len, p),
+		-ENOMEM);
 	if (BN_is_zero(p))
 		BN_one(p);
 
-	q = BN_bin2bn((const unsigned char *)data->q.buf, (int)data->q.len, q);
-	CKNULL(q, -ENOMEM);
+	ASSIGN_CKNULL(q,
+		BN_bin2bn((const unsigned char *)data->q.buf, (int)data->q.len, q),
+		-ENOMEM);
 	if (BN_is_zero(q))
 		BN_one(q);
 
@@ -2993,8 +2996,8 @@ static int openssl_rsa_keygen_prime(struct rsa_keygen_prime_data *data, flags_t 
 	CKNULL(bld, -ENOMEM);
 
 	CKINT_O(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_E, e));
-	CKINT_O(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_FACTOR1, p));
-	CKINT_O(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_FACTOR2, q));
+	CKINT_O(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_TEST_XP, p));
+	CKINT_O(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_TEST_XQ, q));
 	CKINT_O(OSSL_PARAM_BLD_push_uint(bld, OSSL_PKEY_PARAM_RSA_BITS, data->modulus));
 
 	params = OSSL_PARAM_BLD_to_param(bld);
@@ -3010,6 +3013,24 @@ static int openssl_rsa_keygen_prime(struct rsa_keygen_prime_data *data, flags_t 
 	if (ret == 1) {
 		logger(LOGGER_DEBUG, "EVP_PKEY_generate passed for RSA\n");
 		data->keygen_success = 1;
+		{
+			struct buffer temp;
+			CKINT(openssl_pkey_get_bn_bytes(rsa, OSSL_PKEY_PARAM_RSA_E, &temp));
+			logger_binary(LOGGER_DEBUG, temp.buf, temp.len, "e");
+			free_buf(&temp);
+			CKINT(openssl_pkey_get_bn_bytes(rsa, OSSL_PKEY_PARAM_RSA_FACTOR1, &temp));
+			logger_binary(LOGGER_DEBUG, temp.buf, temp.len, "p");
+			free_buf(&temp);
+			CKINT(openssl_pkey_get_bn_bytes(rsa, OSSL_PKEY_PARAM_RSA_FACTOR2, &temp));
+			logger_binary(LOGGER_DEBUG, temp.buf, temp.len, "q");
+			free_buf(&temp);
+			CKINT(openssl_pkey_get_bn_bytes(rsa, OSSL_PKEY_PARAM_RSA_D, &temp));
+			logger_binary(LOGGER_DEBUG, temp.buf, temp.len, "d");
+			free_buf(&temp);
+			CKINT(openssl_pkey_get_bn_bytes(rsa, OSSL_PKEY_PARAM_RSA_N, &temp));
+			logger_binary(LOGGER_DEBUG, temp.buf, temp.len, "n");
+			free_buf(&temp);
+		}
 		ret = 0;
 	} else if (ret == 0) {
 		logger(LOGGER_DEBUG, "EVP_PKEY_generate failed for RSA\n");

@@ -25,6 +25,15 @@ extern "C"
 {
 #endif
 
+#define ASSIGN_CKNULL(v, exp, r) {\
+	v = exp;\
+	if (!v) {\
+		ret = r;\
+		logger(LOGGER_ERR, "%s failed. return code set %d\n", #exp, ret);\
+		goto out;\
+	}\
+}
+
 #define CKINT(x) {							\
 	ret = x;							\
 	if (ret < 0) {							\
