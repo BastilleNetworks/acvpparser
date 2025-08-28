@@ -8,10 +8,11 @@ BUNDLE_DIR=$(realpath "${1}")
 
 make clean
 make -s openssl
+rm -f "${BUNDLE_DIR}"/raw/**/*
 
 for GIVEN_FILE in "${BUNDLE_DIR}"/given/**/*.json; do
   RAW_FILE=$(echo "${GIVEN_FILE}" | sed -e s/given/raw/)
-  echo RUNNING: ./acvp-parser "${GIVEN_FILE}" "${RAW_FILE}"
+  echo RUNNING: ./acvp-parser '"'"${GIVEN_FILE}"'"' '"'"${RAW_FILE}"'"'
   set +e
   ./acvp-parser "${GIVEN_FILE}" "${RAW_FILE}"
   set -e
